@@ -14,28 +14,30 @@ module ProcessingUnit1D #(
     input   logic                                   s_valid_i,
     input   logic                                   s_sof_i,
     input   logic                                   s_eol_i,
-    input   logic   [2*DataWidth-1:0]               s_data_i,
+    input   logic   [2*DataWidth-1:0]               s_data_i,   // {odd, even} or {high, low}
 
-    input   logic                                   m_ready_o,
-    output  logic                                   m_valid_i,
+    input   logic                                   m_ready_i,
+    output  logic                                   m_valid_o,
     output  logic                                   m_sof_o,
     output  logic                                   m_eol_o,
-    output  logic   [2*DataWidth-1:0]               m_data_o
+    output  logic   [2*DataWidth-1:0]               m_data_o    // {odd, even} or {high, low}
 );
 
     localparam InvAlpha = 1.0 / Alpha;
     localparam InvAlphaBeta = 1.0 + 1.0 / (Alpha * Beta);
-    localparam IntInvAlpha = $rtoi(InvAlpha * 2**Point);
-    localparam IntInvAlphaBeta = $rtoi(InvAlphaBeta * 2**Point);
+    localparam IntInvAlpha = $rtoi(InvAlpha * 2.0**Point);
+    localparam IntInvAlphaBeta = $rtoi(InvAlphaBeta * 2.0**Point);
+
+    localparam PipelineLatency = InputReg + 1 + 1; // input reg + multiply + output calc 
 
     logic en_reg;
 
     logic [2*DataWidth-1:0] din_int;
 
-    logic [DataWidth-1:0] even, odd;
-    logic [DataWidth-1:0] k_even, k_odd;
+    logic signed [DataWidth-1:0] even, odd;
+    logic signed [DataWidth-1:0] k_even, k_odd;
 
-    logic [DataWidth-1:0] even_reg, k_even_reg, k_odd_reg;
+    logic signed [DataWidth-1:0] even_reg, k_even_reg, k_odd_reg;
 
     generate 
         begin
@@ -107,9 +109,9 @@ module ProcessingUnit1D #(
         .dout_o(k_odd_reg)
     );
 
-    logic [DataWidth-1:0] d1_buff_in, d1_buff_out;
-    logic [DataWidth-1:0] d2_buff_in, d2_buff_out;
-    logic [DataWidth-1:0] y_odd, y_even;
+    logic signed [DataWidth-1:0] d1_buff_in, d1_buff_out;
+    logic signed [DataWidth-1:0] d2_buff_in, d2_buff_out;
+    logic signed [DataWidth-1:0] y_odd, y_even;
 
     Adder #(
         .Width(DataWidth)
@@ -204,11 +206,64 @@ module ProcessingUnit1D #(
         .en_i(buff_we),
         .val_o(waddr)
     );
-    assign raddr = waddr + 1;
-    
+
+    // TODO: fix raddr calc
+    assign raddr = (s_eol_i) ? 0 : waddr + 1;    
     assign buff_we = s_valid_i;
     assign en_reg = s_valid_i;
 
     // 
+
+    logic shiftEn;
+    assign shiftEn = s_valid_i;
+
+    ShiftReg #(
+        .Width(1),
+        .Depth(PipelineLatency)
+    ) EolShRegInst (
+        .clk_i(clk_i),
+        .en_i(shiftEn),
+        .din_i(s_eol_i),
+        .dout_o(m_eol_o)
+    );
+
+    ShiftReg #(
+        .Width(1),
+        .Depth(PipelineLatency)
+    ) SofShRegInst (
+        .clk_i(clk_i),
+        .en_i(shiftEn),
+        .din_i(s_sof_i),
+        .dout_o(m_sof_o)
+    );
+
+    assign m_valid_o = m_ready_i & s_valid_i;
+    assign s_ready_o = m_ready_i;
+
+
+    // only sim
+    real real_even, real_ke, real_k_even;
+    real real_odd, real_ko, real_k_odd;
+
+    real real_even_reg, real_k_even_reg, real_k_odd_reg;
+    
+    real real_d1_in, real_d1_out; 
+    real real_d2_in, real_d2_out; 
+    
+    assign real_even       = even            / (2.0 ** Point);
+    assign real_ke         = IntInvAlphaBeta / (2.0 ** Point);
+    assign real_k_even     = k_even          / (2.0 ** Point);
+    
+    assign real_odd        = odd             / (2.0 ** Point);
+    assign real_ko         = IntInvAlpha     / (2.0 ** Point);
+    assign real_k_odd      = k_odd           / (2.0 ** Point);
+    
+    assign real_even_reg   = even_reg        / (2.0 ** Point);
+    assign real_k_even_reg = k_even_reg      / (2.0 ** Point);
+    assign real_k_odd_reg  = k_odd_reg       / (2.0 ** Point);
+    assign real_d1_in      = d1_buff_in      / (2.0 ** Point);
+    assign real_d1_out     = d1_buff_out     / (2.0 ** Point);
+    assign real_d2_in      = d2_buff_in      / (2.0 ** Point);
+    assign real_d2_out     = d2_buff_out     / (2.0 ** Point);
 
 endmodule
