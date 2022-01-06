@@ -114,8 +114,8 @@ module tb_pu ();
         .s_eol_i(eol),
         .s_data_i({ odd, even }),
         
-        .m_ready_o(),
-        .m_valid_i(),
+        .m_ready_i(),
+        .m_valid_o(),
         .m_sof_o(),
         .m_eol_o(),
         .m_data_o(out)
