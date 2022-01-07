@@ -1,8 +1,8 @@
 module tb_pu ();
 
     localparam ClkPeriod    = 10ns;
-    localparam DataWidth    = 16;
-    localparam Point        = 10;
+    localparam DataWidth    = 24;
+    localparam Point        = 16;
     localparam SideSize     = 16;
 
     typedef logic [DataWidth-1:0] coeff_t;
@@ -87,13 +87,16 @@ module tb_pu ();
         @(negedge clk);
 
         WriteLine(in_data[4], in_data[3], 1);
+        @(negedge clk);
         WriteLine(in_data[2], in_data[1], 0);
+        @(negedge clk);
         for (int i = 0; i < SideSize; i+=2) begin
             WriteLine(in_data[i], in_data[i+1], 0);
+            @(negedge clk);
         end
         WriteLine(in_data[SideSize-2], in_data[SideSize-3], 0);
+        @(negedge clk);
         WriteLine(in_data[SideSize-4], in_data[SideSize-5], 0);
-
     end
 
 
@@ -114,7 +117,7 @@ module tb_pu ();
         .s_eol_i(eol),
         .s_data_i({ odd, even }),
         
-        .m_ready_i(),
+        .m_ready_i(1),
         .m_valid_o(),
         .m_sof_o(),
         .m_eol_o(),

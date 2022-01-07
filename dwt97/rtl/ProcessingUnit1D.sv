@@ -79,6 +79,31 @@ module ProcessingUnit1D #(
         .m_o(k_even)
     );
 
+    // valid and eol input reg
+    logic valid, eol;
+
+    Dffenr #(
+        .Width(1)
+    ) ValidInputRegInst (
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .en_i(en_reg),
+        .din_i(s_valid_i),
+        .dout_o(valid)
+    );
+
+    Dffenr #(
+        .Width(1)
+    ) EolInputRegInst (
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .en_i(en_reg),
+        .din_i(s_eol_i),
+        .dout_o(eol)
+    );
+    
+    /// 
+
     Dffenr #(
         .Width(DataWidth)
     ) KEvenRegInst (
@@ -202,18 +227,17 @@ module ProcessingUnit1D #(
         .RstVal(0)
     ) WriteCounterInst (
         .clk_i(clk_i),
-        .rst_i(s_eol_i | rst_i),
+        .rst_i(eol | rst_i),
         .en_i(buff_we),
         .val_o(waddr)
     );
 
-    // TODO: fix raddr calc
-    assign raddr = (s_eol_i) ? 0 : waddr + 1;    
-    assign buff_we = s_valid_i;
-    assign en_reg = s_valid_i;
-
+    assign raddr = (eol) ? 0 : waddr + 1;    
+    assign buff_we = valid;
+    
     // 
-
+    
+    assign en_reg = s_valid_i;
     logic shiftEn;
     assign shiftEn = s_valid_i;
 
