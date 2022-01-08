@@ -184,7 +184,7 @@ module ProcessingUnit1D #(
            to_output_reg.eol = calc_data.eol;
 
     AxisReg #(
-        .DataWidth($bits(to_calc_reg))
+        .DataWidth($bits(to_output_reg))
     ) OutputRegInst (
         .clk_i(clk_i),
         .rst_i(rst_i),
