@@ -10,18 +10,22 @@ module tb_pu ();
 
     real    src_data [0:SideSize-1][0:SideSize-1];
     coeff_line_t in_data[0:SideSize-1];
-    // coeff_line_t out_data[0:SideSize-1];
-    // real    dst_data [0:SideSize-1][0:SideSize-1];
 
     coeff_t even, odd;
     logic   sof, eol;
     logic   ready, valid;
-    logic [2*DataWidth-1:0] out;
+
+    logic m_ready;
+    logic m_valid;
+    logic m_sof;
+    logic m_eol;
+    logic [2*DataWidth-1:0] m_data;
+    
     logic signed [DataWidth-1:0] h_int, l_int;
     real    l, h;
 
-    assign l_int = out[DataWidth-1:0];
-    assign h_int = out[2*DataWidth-1:DataWidth];
+    assign l_int = m_data[DataWidth-1:0];
+    assign h_int = m_data[2*DataWidth-1:DataWidth];
     assign l = l_int / (2.0 ** Point); 
     assign h = h_int / (2.0 ** Point); 
 
@@ -87,18 +91,19 @@ module tb_pu ();
         @(negedge clk);
 
         WriteLine(in_data[4], in_data[3], 1);
-        @(negedge clk);
+        // @(negedge clk);
         WriteLine(in_data[2], in_data[1], 0);
-        @(negedge clk);
+        // @(negedge clk);
         for (int i = 0; i < SideSize; i+=2) begin
             WriteLine(in_data[i], in_data[i+1], 0);
-            @(negedge clk);
+            // @(negedge clk);
         end
         WriteLine(in_data[SideSize-2], in_data[SideSize-3], 0);
-        @(negedge clk);
+        // @(negedge clk);
         WriteLine(in_data[SideSize-4], in_data[SideSize-5], 0);
     end
 
+    assign m_ready = 1;
 
     ProcessingUnit1D #(
         .DataWidth(DataWidth),
@@ -117,11 +122,11 @@ module tb_pu ();
         .s_eol_i(eol),
         .s_data_i({ odd, even }),
         
-        .m_ready_i(1),
-        .m_valid_o(),
-        .m_sof_o(),
-        .m_eol_o(),
-        .m_data_o(out)
+        .m_ready_i(m_ready),
+        .m_valid_o(m_valid),
+        .m_sof_o(m_sof),
+        .m_eol_o(m_eol),
+        .m_data_o(m_data)
     );
 
 endmodule

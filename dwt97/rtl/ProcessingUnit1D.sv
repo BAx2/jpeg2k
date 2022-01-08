@@ -1,3 +1,14 @@
+// TODO: add normal axi handshake
+// 
+//          input      cross-stage    output                    
+//          reg        reg            reg                     
+//         +---+      +---+          +---+    
+// =odd==> | R |      | R |          | R | =odd==>     
+//         | G | mult | G | out calc | G |         
+// =even=> |   |      |   |          |   | =even=>
+//         +---+      +---+          +---+
+//
+
 module ProcessingUnit1D #(
     parameter       DataWidth         = 16,
     parameter       Point             = 10,
@@ -28,45 +39,78 @@ module ProcessingUnit1D #(
     localparam IntInvAlpha = $rtoi(InvAlpha * 2.0**Point);
     localparam IntInvAlphaBeta = $rtoi(InvAlphaBeta * 2.0**Point);
 
-    localparam PipelineLatency = InputReg + 1 + 1; // input reg + multiply + output calc 
+    typedef struct packed {
+        logic                 eol;
+        logic                 sof;
+        logic [DataWidth-1:0] even;
+        logic [DataWidth-1:0] odd;
+    } mult_t;
 
-    logic en_reg;
+    typedef struct packed {
+        logic                 eol;
+        logic                 sof;
+        logic [DataWidth-1:0] even;
+        logic [DataWidth-1:0] k_even;
+        logic [DataWidth-1:0] k_odd;
+    } calc_t;
 
-    logic [2*DataWidth-1:0] din_int;
+    typedef struct packed {
+        logic                 eol;
+        logic                 sof;
+        logic [DataWidth-1:0] even;
+        logic [DataWidth-1:0] odd;
+    } output_t;
 
-    logic signed [DataWidth-1:0] even, odd;
-    logic signed [DataWidth-1:0] k_even, k_odd;
+    mult_t inp_data, mult_data;
+    calc_t to_calc_reg;
+    logic mult_ready, mult_valid;
 
-    logic signed [DataWidth-1:0] even_reg, k_even_reg, k_odd_reg;
+    calc_t calc_data;
+    logic calc_ready, calc_valid, calc_do_op;
+    output_t to_output_reg;
 
-    generate 
+    output_t output_data;
+
+    assign inp_data.eol  = s_eol_i,
+           inp_data.sof  = s_sof_i,
+           inp_data.even = s_data_i[DataWidth-1:0],
+           inp_data.odd  = s_data_i[2*DataWidth-1:DataWidth];
+
+    generate
         begin
             if (InputReg) begin
-                Dffenr #(
-                    .Width(2*DataWidth)
+                AxisReg #(
+                    .DataWidth($bits(inp_data))
                 ) InputRegInst (
                     .clk_i(clk_i),
                     .rst_i(rst_i),
-                    .en_i(en_reg),
-                    .din_i(s_data_i),
-                    .dout_o(din_int)
+                    
+                    .s_data_i(inp_data),
+                    .s_valid_i(s_valid_i),
+                    .s_ready_o(s_ready_o),
+                    
+                    .m_data_o(mult_data),
+                    .m_valid_o(mult_valid),
+                    .m_ready_i(mult_ready)
                 );
             end else begin
-                assign din_int = s_data_i;
+                assign mult_data = inp_data;
+                assign mult_valid = s_valid_i;
+                assign s_ready_o = mult_ready;
             end
-            assign odd  = din_int[2*DataWidth-1:DataWidth];
-            assign even = din_int[DataWidth-1:0];
         end
     endgenerate
-    
+
+    // mult stage
+
     Multiplyer #(
         .Width(DataWidth),
         .InPoint(Point),
         .OutPoint(Point)
     ) OddMultInst (
-        .a_i(odd),
+        .a_i(mult_data.odd),
         .b_i(IntInvAlpha),
-        .m_o(k_odd)
+        .m_o(to_calc_reg.k_odd)
     );
     
     Multiplyer #(
@@ -74,65 +118,31 @@ module ProcessingUnit1D #(
         .InPoint(Point),
         .OutPoint(Point)
     ) EvenMultInst (
-        .a_i(even),
+        .a_i(mult_data.even),
         .b_i(IntInvAlphaBeta),
-        .m_o(k_even)
+        .m_o(to_calc_reg.k_even)
     );
 
-    // valid and eol input reg
-    logic valid, eol;
+    assign to_calc_reg.eol  = mult_data.eol,
+           to_calc_reg.sof  = mult_data.sof,
+           to_calc_reg.even = mult_data.even;
 
-    Dffenr #(
-        .Width(1)
-    ) ValidInputRegInst (
+    // calc stage
+    AxisReg #(
+        .DataWidth($bits(to_calc_reg))
+    ) CalcRegInst (
         .clk_i(clk_i),
         .rst_i(rst_i),
-        .en_i(en_reg),
-        .din_i(s_valid_i),
-        .dout_o(valid)
+        
+        .s_data_i(to_calc_reg),
+        .s_valid_i(mult_valid),
+        .s_ready_o(mult_ready),
+        
+        .m_data_o(calc_data),
+        .m_valid_o(calc_valid),
+        .m_ready_i(calc_ready)
     );
-
-    Dffenr #(
-        .Width(1)
-    ) EolInputRegInst (
-        .clk_i(clk_i),
-        .rst_i(rst_i),
-        .en_i(en_reg),
-        .din_i(s_eol_i),
-        .dout_o(eol)
-    );
-    
-    /// 
-
-    Dffenr #(
-        .Width(DataWidth)
-    ) KEvenRegInst (
-        .clk_i(clk_i),
-        .rst_i(rst_i),
-        .en_i(en_reg),
-        .din_i(k_even),
-        .dout_o(k_even_reg)
-    );
-
-    Dffenr #(
-        .Width(DataWidth)
-    ) EvenRegInst (
-        .clk_i(clk_i),
-        .rst_i(rst_i),
-        .en_i(en_reg),
-        .din_i(even),
-        .dout_o(even_reg)
-    );
-
-    Dffenr #(
-        .Width(DataWidth)
-    ) KOddRegInst (
-        .clk_i(clk_i),
-        .rst_i(rst_i),
-        .en_i(en_reg),
-        .din_i(k_odd),
-        .dout_o(k_odd_reg)
-    );
+    assign calc_do_op = calc_valid & calc_ready;
 
     logic signed [DataWidth-1:0] d1_buff_in, d1_buff_out;
     logic signed [DataWidth-1:0] d2_buff_in, d2_buff_out;
@@ -141,8 +151,8 @@ module ProcessingUnit1D #(
     Adder #(
         .Width(DataWidth)
     ) OddAdderInst (
-        .a_i(k_odd_reg),
-        .b_i(even_reg),
+        .a_i(calc_data.k_odd),
+        .b_i(calc_data.even),
         .s_o(d1_buff_in)
     );
 
@@ -150,14 +160,14 @@ module ProcessingUnit1D #(
         .Width(DataWidth)
     ) EvenAdderInst (
         .a_i(d1_buff_out),
-        .b_i(even_reg),
-        .s_o(y_odd)
+        .b_i(calc_data.even),
+        .s_o(to_output_reg.odd)
     );
 
     Adder #(
         .Width(DataWidth)
     ) OddOutAdderInst (
-        .a_i(k_even_reg),
+        .a_i(calc_data.k_even),
         .b_i(d1_buff_out),
         .s_o(d2_buff_in)
     );
@@ -166,29 +176,40 @@ module ProcessingUnit1D #(
         .Width(DataWidth)
     ) EvenOutAdderInst (
         .a_i(d2_buff_out),
-        .b_i(y_odd),
-        .s_o(y_even)
+        .b_i(to_output_reg.odd),
+        .s_o(to_output_reg.even)
     );
 
-    Dffenr #(
-        .Width(2*DataWidth)
+    assign to_output_reg.sof = calc_data.sof,
+           to_output_reg.eol = calc_data.eol;
+
+    AxisReg #(
+        .DataWidth($bits(to_calc_reg))
     ) OutputRegInst (
         .clk_i(clk_i),
         .rst_i(rst_i),
-        .en_i(en_reg),
-        .din_i({ y_odd, y_even }),
-        .dout_o(m_data_o)
+        
+        .s_data_i(to_output_reg),
+        .s_valid_i(calc_valid),
+        .s_ready_o(calc_ready),
+        
+        .m_data_o(output_data),
+        .m_valid_o(m_valid_o),
+        .m_ready_i(m_ready_i)
     );
-    
-    localparam AddrWidth = $clog2(MaximumSideSize);
+    assign m_data_o = {output_data.odd, output_data.even},
+           m_eol_o  = output_data.eol,
+           m_sof_o  = output_data.sof;
+
+    localparam RamAddrWidth = $clog2(MaximumSideSize);
     
     // for column filter
-    logic [AddrWidth-1:0] raddr, waddr;
+    logic [RamAddrWidth-1:0] raddr, waddr;
     logic buff_we;
 
     Bram #(
         .DataWidth(DataWidth),
-        .AddrWidth(AddrWidth)
+        .AddrWidth(RamAddrWidth)
     ) D1RamInst (
         .clka_i(clk_i),
         .clkb_i(clk_i),
@@ -206,7 +227,7 @@ module ProcessingUnit1D #(
 
     Bram #(
         .DataWidth(DataWidth),
-        .AddrWidth(AddrWidth)
+        .AddrWidth(RamAddrWidth)
     ) D2RamInst (
         .clka_i(clk_i),
         .clkb_i(clk_i),
@@ -223,71 +244,41 @@ module ProcessingUnit1D #(
     );
 
     Counter #(
-        .Width(AddrWidth),
+        .Width(RamAddrWidth),
         .RstVal(0)
     ) WriteCounterInst (
         .clk_i(clk_i),
-        .rst_i(eol | rst_i),
+        .rst_i(calc_data.eol | rst_i),
         .en_i(buff_we),
         .val_o(waddr)
     );
 
-    assign raddr = (eol) ? 0 : waddr + 1;    
-    assign buff_we = valid;
+    assign raddr = (calc_data.eol) ? 0 : waddr + 1;    
+    assign buff_we = calc_valid;
     
-    // 
-    
-    assign en_reg = s_valid_i;
-    logic shiftEn;
-    assign shiftEn = s_valid_i;
-
-    ShiftReg #(
-        .Width(1),
-        .Depth(PipelineLatency)
-    ) EolShRegInst (
-        .clk_i(clk_i),
-        .en_i(shiftEn),
-        .din_i(s_eol_i),
-        .dout_o(m_eol_o)
-    );
-
-    ShiftReg #(
-        .Width(1),
-        .Depth(PipelineLatency)
-    ) SofShRegInst (
-        .clk_i(clk_i),
-        .en_i(shiftEn),
-        .din_i(s_sof_i),
-        .dout_o(m_sof_o)
-    );
-
-    assign m_valid_o = m_ready_i & s_valid_i;
-    assign s_ready_o = m_ready_i;
-
-
+    /////////////////////////////////////////////////////////////
     // only sim
-    real real_even, real_ke, real_k_even;
-    real real_odd, real_ko, real_k_odd;
+    real sim_even, sim_ke, sim_k_even;
+    real sim_odd, sim_ko, sim_k_odd;
 
-    real real_even_reg, real_k_even_reg, real_k_odd_reg;
+    assign sim_even       = mult_data.even         / (2.0 ** Point);
+    assign sim_ke         = IntInvAlphaBeta        / (2.0 ** Point);
+    assign sim_k_even     = to_calc_reg.k_even     / (2.0 ** Point);
     
-    real real_d1_in, real_d1_out; 
-    real real_d2_in, real_d2_out; 
-    
-    assign real_even       = even            / (2.0 ** Point);
-    assign real_ke         = IntInvAlphaBeta / (2.0 ** Point);
-    assign real_k_even     = k_even          / (2.0 ** Point);
-    
-    assign real_odd        = odd             / (2.0 ** Point);
-    assign real_ko         = IntInvAlpha     / (2.0 ** Point);
-    assign real_k_odd      = k_odd           / (2.0 ** Point);
-    
-    assign real_even_reg   = even_reg        / (2.0 ** Point);
-    assign real_k_even_reg = k_even_reg      / (2.0 ** Point);
-    assign real_k_odd_reg  = k_odd_reg       / (2.0 ** Point);
-    assign real_d1_in      = d1_buff_in      / (2.0 ** Point);
-    assign real_d1_out     = d1_buff_out     / (2.0 ** Point);
-    assign real_d2_in      = d2_buff_in      / (2.0 ** Point);
-    assign real_d2_out     = d2_buff_out     / (2.0 ** Point);
+    assign sim_odd        = mult_data.odd          / (2.0 ** Point);
+    assign sim_ko         = IntInvAlpha            / (2.0 ** Point);
+    assign sim_k_odd      = to_calc_reg.k_odd      / (2.0 ** Point);
+
+    real sim_even_reg, sim_k_even_reg, sim_k_odd_reg;
+    real sim_d1_in, sim_d1_out; 
+    real sim_d2_in, sim_d2_out; 
+
+    assign sim_even_reg   = calc_data.even         / (2.0 ** Point);
+    assign sim_k_even_reg = calc_data.k_even       / (2.0 ** Point);
+    assign sim_k_odd_reg  = calc_data.k_odd        / (2.0 ** Point);
+    assign sim_d1_in      = d1_buff_in             / (2.0 ** Point);
+    assign sim_d1_out     = d1_buff_out            / (2.0 ** Point);
+    assign sim_d2_in      = d2_buff_in             / (2.0 ** Point);
+    assign sim_d2_out     = d2_buff_out            / (2.0 ** Point);
 
 endmodule

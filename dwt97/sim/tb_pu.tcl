@@ -5,8 +5,7 @@ vlog ../rtl/Coefficient.svh \
      ../../common/rtl/Bram.sv \
      ../../common/rtl/Counter.sv \
      ../../common/rtl/Multiplier.sv \
-     ../../common/rtl/Dffren.sv \
-     ../../common/rtl/ShiftReg.sv \
+     ../../common/rtl/AxisReg.sv \
      ./tb_pu.sv
 
 vsim -novopt work.tb_pu
