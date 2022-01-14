@@ -13,7 +13,7 @@ module ProcessingUnit1D #(
     parameter       DataWidth         = 16,
     parameter       Point             = 10,
     parameter       MaximumSideSize   = 512,
-    // parameter       Orientation       = "Horizontal", // posible: "Horizontal" "Vertical"
+    parameter       FilterType        = "Column", // "Column" "Row"
     parameter real  Alpha             = Coefficient::Alpha,
     parameter real  Beta              = Coefficient::Beta,
     parameter bit   InputReg          = 1
@@ -40,25 +40,25 @@ module ProcessingUnit1D #(
     localparam IntInvAlphaBeta = $rtoi(InvAlphaBeta * 2.0**Point);
 
     typedef struct packed {
-        logic                 eol;
-        logic                 sof;
-        logic [DataWidth-1:0] even;
-        logic [DataWidth-1:0] odd;
+        logic                        eol;
+        logic                        sof;
+        logic signed [DataWidth-1:0] even;
+        logic signed [DataWidth-1:0] odd;
     } mult_t;
 
     typedef struct packed {
-        logic                 eol;
-        logic                 sof;
-        logic [DataWidth-1:0] even;
-        logic [DataWidth-1:0] k_even;
-        logic [DataWidth-1:0] k_odd;
+        logic                        eol;
+        logic                        sof;
+        logic signed [DataWidth-1:0] even;
+        logic signed [DataWidth-1:0] k_even;
+        logic signed [DataWidth-1:0] k_odd;
     } calc_t;
 
     typedef struct packed {
-        logic                 eol;
-        logic                 sof;
-        logic [DataWidth-1:0] even;
-        logic [DataWidth-1:0] odd;
+        logic                        eol;
+        logic                        sof;
+        logic signed [DataWidth-1:0] even;
+        logic signed [DataWidth-1:0] odd;
     } output_t;
 
     mult_t inp_data, mult_data;
@@ -77,27 +77,26 @@ module ProcessingUnit1D #(
            inp_data.odd  = s_data_i[2*DataWidth-1:DataWidth];
 
     generate
-        begin
-            if (InputReg) begin
-                AxisReg #(
-                    .DataWidth($bits(inp_data))
-                ) InputRegInst (
-                    .clk_i(clk_i),
-                    .rst_i(rst_i),
-                    
-                    .s_data_i(inp_data),
-                    .s_valid_i(s_valid_i),
-                    .s_ready_o(s_ready_o),
-                    
-                    .m_data_o(mult_data),
-                    .m_valid_o(mult_valid),
-                    .m_ready_i(mult_ready)
-                );
-            end else begin
-                assign mult_data = inp_data;
-                assign mult_valid = s_valid_i;
-                assign s_ready_o = mult_ready;
-            end
+        if (InputReg) begin
+            AxisReg #(
+                .DataWidth($bits(inp_data))
+            ) InputRegInst (
+                .clk_i(clk_i),
+                .rst_i(rst_i),
+                
+                .s_data_i(inp_data),
+                .s_valid_i(s_valid_i),
+                .s_ready_o(s_ready_o),
+                
+                .m_data_o(mult_data),
+                .m_valid_o(mult_valid),
+                .m_ready_i(mult_ready)
+            );
+        end 
+        else begin
+            assign mult_data = inp_data;
+            assign mult_valid = s_valid_i;
+            assign s_ready_o = mult_ready;
         end
     endgenerate
 
@@ -203,58 +202,87 @@ module ProcessingUnit1D #(
 
     localparam RamAddrWidth = $clog2(MaximumSideSize);
     
-    // for column filter
-    logic [RamAddrWidth-1:0] raddr, waddr;
-    logic buff_we;
+    generate
+        if (FilterType == "Column") begin
+            logic [RamAddrWidth-1:0] raddr, waddr;
+            logic buff_we;
+        
+            Bram #(
+                .DataWidth(DataWidth),
+                .AddrWidth(RamAddrWidth)
+            ) D1RamInst (
+                .clka_i(clk_i),
+                .clkb_i(clk_i),
+                // write channel
+                .addra_i(waddr),
+                .wea_i(buff_we),
+                .dina_i(d1_buff_in),
+                .douta_o(),
+                // read channel
+                .addrb_i(raddr),
+                .web_i(1'b0),
+                .dinb_i('h0),
+                .doutb_o(d1_buff_out)
+            );
+        
+            Bram #(
+                .DataWidth(DataWidth),
+                .AddrWidth(RamAddrWidth)
+            ) D2RamInst (
+                .clka_i(clk_i),
+                .clkb_i(clk_i),
+                // write channel
+                .addra_i(waddr),
+                .wea_i(buff_we),
+                .dina_i(d2_buff_in),
+                .douta_o(),
+                // read channel
+                .addrb_i(raddr),
+                .web_i(1'b0),
+                .dinb_i('h0),
+                .doutb_o(d2_buff_out)
+            );
+        
+            Counter #(
+                .Width(RamAddrWidth),
+                .RstVal(0)
+            ) WriteCounterInst (
+                .clk_i(clk_i),
+                .rst_i(calc_data.eol | rst_i),
+                .en_i(buff_we),
+                .val_o(waddr)
+            );
+        
+            assign raddr = (calc_data.eol) ? 0 : waddr + 1;    
+            assign buff_we = calc_valid;
+        end 
+        else if (FilterType == "Row") begin
+            logic buff_we;
+            ShiftReg #(
+                .Width(DataWidth),
+                .Depth(2)
+            ) D1BuffInst (
+                .clk_i(clk_i),
+                .en_i(buff_we),
+                .din_i(d1_buff_in),
+                .dout_o(d1_buff_out)
+            );
+            ShiftReg #(
+                .Width(DataWidth),
+                .Depth(2)
+            ) D2BuffInst (
+                .clk_i(clk_i),
+                .en_i(buff_we),
+                .din_i(d2_buff_in),
+                .dout_o(d2_buff_out)
+            );
+            assign buff_we = calc_valid;
+        end 
+        else begin
+            illegal_parameter_condition_triggered_will_instantiate_an non_existing_module();
+        end
+    endgenerate
 
-    Bram #(
-        .DataWidth(DataWidth),
-        .AddrWidth(RamAddrWidth)
-    ) D1RamInst (
-        .clka_i(clk_i),
-        .clkb_i(clk_i),
-        // write channel
-        .addra_i(waddr),
-        .wea_i(buff_we),
-        .dina_i(d1_buff_in),
-        .douta_o(),
-        // read channel
-        .addrb_i(raddr),
-        .web_i(1'b0),
-        .dinb_i('h0),
-        .doutb_o(d1_buff_out)
-    );
-
-    Bram #(
-        .DataWidth(DataWidth),
-        .AddrWidth(RamAddrWidth)
-    ) D2RamInst (
-        .clka_i(clk_i),
-        .clkb_i(clk_i),
-        // write channel
-        .addra_i(waddr),
-        .wea_i(buff_we),
-        .dina_i(d2_buff_in),
-        .douta_o(),
-        // read channel
-        .addrb_i(raddr),
-        .web_i(1'b0),
-        .dinb_i('h0),
-        .doutb_o(d2_buff_out)
-    );
-
-    Counter #(
-        .Width(RamAddrWidth),
-        .RstVal(0)
-    ) WriteCounterInst (
-        .clk_i(clk_i),
-        .rst_i(calc_data.eol | rst_i),
-        .en_i(buff_we),
-        .val_o(waddr)
-    );
-
-    assign raddr = (calc_data.eol) ? 0 : waddr + 1;    
-    assign buff_we = calc_valid;
     
     /////////////////////////////////////////////////////////////
     // only sim
