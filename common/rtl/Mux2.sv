@@ -1,4 +1,4 @@
-module Mux #(
+module Mux2 #(
     parameter Width = 16
 ) (
     input   logic   [Width-1:0] a_i,
