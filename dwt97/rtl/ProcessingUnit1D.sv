@@ -34,10 +34,8 @@ module ProcessingUnit1D #(
     output  logic   [2*DataWidth-1:0]               m_data_o    // {odd, even} or {high, low}
 );
 
-    localparam InvAlpha = 1.0 / Alpha;
-    localparam InvAlphaBeta = 1.0 + 1.0 / (Alpha * Beta);
-    localparam IntInvAlpha = $rtoi(InvAlpha * 2.0**Point);
-    localparam IntInvAlphaBeta = $rtoi(InvAlphaBeta * 2.0**Point);
+    localparam IntInvAlpha = $rtoi(Alpha * 2.0**Point);
+    localparam IntInvAlphaBeta = $rtoi(Beta * 2.0**Point);
 
     typedef struct packed {
         logic                        eol;

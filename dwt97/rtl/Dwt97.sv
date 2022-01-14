@@ -19,74 +19,72 @@ module Dwt97 #(
     output  logic   [2*DataWidth-1:0]               m_data_o    // {odd, even} or {high, low}
 );
 
-    logic                       ready;
-    logic                       valid;
-    logic                       sof;
-    logic                       eol;
-    logic   [2*DataWidth-1:0]   data;
+    logic                     col_ready;
+    logic                     col_valid;
+    logic                     col_sof;
+    logic                     col_eol;
+    logic   [2*DataWidth-1:0] col_data;
 
-    ProcessingUnit1D #(
+    ColumnDwt97 #(
         .DataWidth(DataWidth),
         .Point(Point),
-        .MaximumSideSize(MaximumSideSize),
-        .Alpha(Coefficient::Alpha),
-        .Beta(Coefficient::Beta),
-        .InputReg(1)
-    ) FirstPuInst (
+        .MaximumSideSize(MaximumSideSize)
+    ) ColumnDwtInst (
         .clk_i(clk_i),
         .rst_i(rst_i),
-        
         .s_ready_o(s_ready_o),
         .s_valid_i(s_valid_i),
         .s_sof_i(s_sof_i),
         .s_eol_i(s_eol_i),
         .s_data_i(s_data_i),
-        
-        .m_ready_i(ready),
-        .m_valid_o(valid),
-        .m_sof_o(sof),
-        .m_eol_o(eol),
-        .m_data_o(data)
+        .m_ready_i(col_ready),
+        .m_valid_o(col_valid),
+        .m_sof_o(col_sof),
+        .m_eol_o(col_eol),
+        .m_data_o(col_data)
     );
-    
-    logic signed [DataWidth-1:0] even;
-    logic signed [DataWidth-1:0] odd;
 
-    assign odd  = data[2*DataWidth-1:DataWidth];
-    assign even = data[DataWidth-1:0];
-    
-    logic signed [2*DataWidth-1:0] k_even;
-    logic signed [2*DataWidth-1:0] k_odd;
-    logic        [2*DataWidth-1:0] data_int;
+    logic                     exp_ready;
+    logic                     exp_valid;
+    logic                     exp_sof;
+    logic                     exp_eol;
+    logic   [2*DataWidth-1:0] exp_data;
 
-    assign k_odd = $rtoi(Coefficient::Alpha * odd);
-    assign k_even = $rtoi(Coefficient::Alpha * Coefficient::Beta * even);
-
-    assign data_int[2*DataWidth-1:DataWidth] = k_odd;
-    assign data_int[DataWidth-1:0] = k_even;
-
-    ProcessingUnit1D #(
+    BorderExpander #(
         .DataWidth(DataWidth),
-        .Point(Point),
-        .MaximumSideSize(MaximumSideSize),
-        .Alpha(Coefficient::Gama),
-        .Beta(Coefficient::Delta),
-        .InputReg(1)
-    ) SecondPuInst (
+        .EnableInputReg(0)
+    ) BorderExpanderInst (
         .clk_i(clk_i),
         .rst_i(rst_i),
+        .s_ready_o(col_ready),
+        .s_valid_i(col_valid),
+        .s_sof_i(col_sof),
+        .s_eol_i(col_eol),
+        .s_data_i(col_data),
+        .m_ready_i(exp_ready),
+        .m_valid_o(exp_valid),
+        .m_sof_o(exp_sof),
+        .m_eol_o(exp_eol),
+        .m_data_o(exp_data)
+    );
 
-        .s_ready_o(ready),
-        .s_valid_i(valid),
-        .s_sof_i(sof),
-        .s_eol_i(eol),
-
-        .s_data_i(data_int),
-        
+    RowDwt97 #(
+        .DataWidth(DataWidth),
+        .Point(Point),
+        .MaximumSideSize(MaximumSideSize)
+    ) RowDwtInst (
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .s_ready_o(exp_ready),
+        .s_valid_i(exp_valid),
+        .s_sof_i(exp_sof),
+        .s_eol_i(exp_eol),
+        .s_data_i(exp_data),
         .m_ready_i(m_ready_i),
         .m_valid_o(m_valid_o),
         .m_sof_o(m_sof_o),
         .m_eol_o(m_eol_o),
         .m_data_o(m_data_o)
     );
+
 endmodule
