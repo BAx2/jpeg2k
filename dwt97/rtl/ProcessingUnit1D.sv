@@ -76,30 +76,22 @@ module ProcessingUnit1D #(
            inp_data.even = s_data_i[DataWidth-1:0],
            inp_data.odd  = s_data_i[2*DataWidth-1:DataWidth];
 
-    generate
-        if (InputReg) begin
-            AxisReg #(
-                .DataWidth($bits(inp_data))
-            ) InputRegInst (
-                .clk_i(clk_i),
-                .rst_i(rst_i),
-                
-                .s_data_i(inp_data),
-                .s_valid_i(s_valid_i),
-                .s_ready_o(s_ready_o),
-                
-                .m_data_o(mult_data),
-                .m_valid_o(mult_valid),
-                .m_ready_i(mult_ready)
-            );
-        end 
-        else begin
-            assign mult_data = inp_data;
-            assign mult_valid = s_valid_i;
-            assign s_ready_o = mult_ready;
-        end
-    endgenerate
-
+    AxisReg #(
+        .DataWidth($bits(inp_data))
+        .Transperent(InputReg == 0)
+    ) InputRegInst (
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        
+        .s_data_i(inp_data),
+        .s_valid_i(s_valid_i),
+        .s_ready_o(s_ready_o),
+        
+        .m_data_o(mult_data),
+        .m_valid_o(mult_valid),
+        .m_ready_i(mult_ready)
+    );
+    
     // mult stage
 
     Multiplyer #(
