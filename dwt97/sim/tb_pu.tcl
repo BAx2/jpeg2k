@@ -12,9 +12,9 @@ vsim -novopt work.tb_pu
 log * -r
 add wave *
 add wave DUT/*
-add wave -position insertpoint  \
-     sim:/tb_pu/DUT/D1RamInst/ram  \
-     sim:/tb_pu/DUT/D2RamInst/ram
+# add wave -position insertpoint  \
+#      sim:/tb_pu/DUT/D1RamInst/ram  \
+#      sim:/tb_pu/DUT/D2RamInst/ram
 
 run 2800ns
 
