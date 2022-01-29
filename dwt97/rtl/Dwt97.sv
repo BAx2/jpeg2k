@@ -68,6 +68,31 @@ module Dwt97 #(
         .m_data_o(exp_data)
     );
 
+    logic                     transpose_ready;
+    logic                     transpose_valid;
+    logic                     transpose_sof;
+    logic                     transpose_eol;
+    logic   [2*DataWidth-1:0] transpose_data;
+
+    Transpose #(
+        .DataWidth(DataWidth)
+    ) TransposeInst (
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+
+        .s_ready_o(exp_ready),
+        .s_valid_i(exp_valid),
+        .s_sof_i(exp_sof),
+        .s_eol_i(exp_eol),
+        .s_data_i(exp_data),
+
+        .m_ready_i(transpose_ready),
+        .m_valid_o(transpose_valid),
+        .m_sof_o(transpose_sof),
+        .m_eol_o(transpose_eol),
+        .m_data_o(transpose_data)
+    );
+
     RowDwt97 #(
         .DataWidth(DataWidth),
         .Point(Point),
@@ -75,11 +100,11 @@ module Dwt97 #(
     ) RowDwtInst (
         .clk_i(clk_i),
         .rst_i(rst_i),
-        .s_ready_o(exp_ready),
-        .s_valid_i(exp_valid),
-        .s_sof_i(exp_sof),
-        .s_eol_i(exp_eol),
-        .s_data_i(exp_data),
+        .s_ready_o(transpose_ready),
+        .s_valid_i(transpose_valid),
+        .s_sof_i(transpose_sof),
+        .s_eol_i(transpose_eol),
+        .s_data_i(transpose_data),
         .m_ready_i(m_ready_i),
         .m_valid_o(m_valid_o),
         .m_sof_o(m_sof_o),
