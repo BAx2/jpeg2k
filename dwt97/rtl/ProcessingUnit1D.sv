@@ -75,7 +75,7 @@ module ProcessingUnit1D #(
            inp_data.odd  = s_data_i[2*DataWidth-1:DataWidth];
 
     AxisReg #(
-        .DataWidth($bits(inp_data))
+        .DataWidth($bits(inp_data)),
         .Transperent(InputReg == 0)
     ) InputRegInst (
         .clk_i(clk_i),

@@ -1,4 +1,4 @@
-module ColumnDwt97 #(
+module RowDwt97 #(
     parameter       DataWidth         = 16,
     parameter       Point             = 10,
     parameter       MaximumSideSize   = 512
