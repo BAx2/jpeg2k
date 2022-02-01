@@ -69,7 +69,7 @@ module RowDwt97 #(
         .s_valid_i(valid),
         .s_sof_i(sof),
         .s_eol_i(eol),
-        .s_data_i(data_int),
+        .s_data_i(data),
         
         .m_ready_i(m_ready),
         .m_valid_o(m_valid),
