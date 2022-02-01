@@ -8,6 +8,7 @@
 // =even=> |   |      |   |          |   | =even=>
 //         +---+      +---+          +---+
 //
+`include "Coefficient.svh"
 
 module ProcessingUnit1D #(
     parameter       DataWidth         = 16,
@@ -75,7 +76,7 @@ module ProcessingUnit1D #(
            inp_data.odd  = s_data_i[2*DataWidth-1:DataWidth];
 
     AxisReg #(
-        .DataWidth($bits(inp_data))
+        .DataWidth($bits(inp_data)),
         .Transperent(InputReg == 0)
     ) InputRegInst (
         .clk_i(clk_i),
@@ -272,31 +273,5 @@ module ProcessingUnit1D #(
             illegal_parameter_condition_triggered_will_instantiate_an non_existing_module();
         end
     endgenerate
-
-    
-    /////////////////////////////////////////////////////////////
-    // only sim
-    real sim_even, sim_ke, sim_k_even;
-    real sim_odd, sim_ko, sim_k_odd;
-
-    assign sim_even       = mult_data.even         / (2.0 ** Point);
-    assign sim_ke         = IntInvAlphaBeta        / (2.0 ** Point);
-    assign sim_k_even     = to_calc_reg.k_even     / (2.0 ** Point);
-    
-    assign sim_odd        = mult_data.odd          / (2.0 ** Point);
-    assign sim_ko         = IntInvAlpha            / (2.0 ** Point);
-    assign sim_k_odd      = to_calc_reg.k_odd      / (2.0 ** Point);
-
-    real sim_even_reg, sim_k_even_reg, sim_k_odd_reg;
-    real sim_d1_in, sim_d1_out; 
-    real sim_d2_in, sim_d2_out; 
-
-    assign sim_even_reg   = calc_data.even         / (2.0 ** Point);
-    assign sim_k_even_reg = calc_data.k_even       / (2.0 ** Point);
-    assign sim_k_odd_reg  = calc_data.k_odd        / (2.0 ** Point);
-    assign sim_d1_in      = d1_buff_in             / (2.0 ** Point);
-    assign sim_d1_out     = d1_buff_out            / (2.0 ** Point);
-    assign sim_d2_in      = d2_buff_in             / (2.0 ** Point);
-    assign sim_d2_out     = d2_buff_out            / (2.0 ** Point);
 
 endmodule

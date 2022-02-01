@@ -1,4 +1,6 @@
-module ColumnDwt97 #(
+`include "Coefficient.svh"
+
+module RowDwt97 #(
     parameter       DataWidth         = 16,
     parameter       Point             = 10,
     parameter       MaximumSideSize   = 512

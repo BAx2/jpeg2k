@@ -1,3 +1,5 @@
+`include "Coefficient.svh"
+
 module Dwt97 #(
     parameter       DataWidth         = 16,
     parameter       Point             = 10,
