@@ -58,8 +58,8 @@ module ColumnDwt97 #(
         .Point(Point),
         .MaximumSideSize(MaximumSideSize),
         .FilterType("Row"),
-        .Alpha(Coefficient::Alpha / Coefficient::Gama),
-        .Beta(Coefficient::Alpha * Coefficient::Beta * (1.0 / (Coefficient::Gama * Coefficient::Delta) + 1)),
+        .Alpha(1.0 / (Coefficient::Gama * Coefficient::Beta)),
+        .Beta(1.0 / (Coefficient::Gama * Coefficient::Delta) + 1),
         .InputReg(0)
     ) SecondPuInst (
         .clk_i(clk_i),
