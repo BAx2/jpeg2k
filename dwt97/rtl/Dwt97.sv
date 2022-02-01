@@ -93,6 +93,12 @@ module Dwt97 #(
         .m_data_o(transpose_data)
     );
 
+    logic                     row_ready;
+    logic                     row_valid;
+    logic                     row_sof;
+    logic                     row_eol;
+    logic   [2*DataWidth-1:0] row_data;
+
     RowDwt97 #(
         .DataWidth(DataWidth),
         .Point(Point),
@@ -105,11 +111,84 @@ module Dwt97 #(
         .s_sof_i(transpose_sof),
         .s_eol_i(transpose_eol),
         .s_data_i(transpose_data),
+        .m_ready_i(row_ready),
+        .m_valid_o(row_valid),
+        .m_sof_o(row_sof),
+        .m_eol_o(row_eol),
+        .m_data_o(row_data)
+    );
+
+    localparam CoeffHH = (
+        Coefficient::Alpha * Coefficient::Alpha *
+        Coefficient::Beta  * Coefficient::Beta  *
+        Coefficient::Gama  * Coefficient::Gama
+    );
+    localparam CoeffLL = CoeffHH * (Coefficient::Delta * Coefficient::Delta);
+    localparam CoeffLH = CoeffHH * (Coefficient::Delta);
+    localparam CoeffHL = CoeffHH * (Coefficient::Delta);
+
+    OutputScale #(
+        .InDataWidth   (16),
+        .InDataPoint   (10),
+
+        .OutDataWidth  (16),
+        .OutDataPoint  (10),
+
+        .KWidth        (25),
+        .OddK          (CoeffLL * Coefficient::K * Coefficient::K),
+        .OddPoint      (10),
+        .EvenK         (CoeffHL),
+        .EvenPoint     (10),
+
+        .InputReg      (1),
+        .OutputReg     (1)
+    ) ScaleLLineInst (
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+
+        .s_ready_o(row_ready),
+        .s_valid_i(row_valid),
+        .s_sof_i(row_sof),
+        .s_eol_i(row_eol),
+        .s_data_i(row_data[DataWidth-1:0]),
+
         .m_ready_i(m_ready_i),
         .m_valid_o(m_valid_o),
         .m_sof_o(m_sof_o),
         .m_eol_o(m_eol_o),
-        .m_data_o(m_data_o)
+        .m_data_o(m_data_o[DataWidth-1:0])
+    );
+
+    OutputScale #(
+        .InDataWidth   (16),
+        .InDataPoint   (10),
+
+        .OutDataWidth  (16),
+        .OutDataPoint  (10),
+
+        .KWidth        (25),
+        .OddK          (CoeffLH),
+        .OddPoint      (10),
+        .EvenK         (CoeffHH / (Coefficient::K * Coefficient::K)),
+        .EvenPoint     (10),
+
+        .InputReg      (1),
+        .OutputReg     (1)
+    ) ScaleHLineInst (
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+
+        .s_ready_o(),
+        .s_valid_i(row_valid),
+        .s_sof_i(row_sof),
+        .s_eol_i(row_eol),
+        .s_data_i(row_data[2*DataWidth-1:DataWidth]),
+
+        .m_ready_i(m_ready_i),
+        .m_valid_o(),
+        .m_sof_o(),
+        .m_eol_o(),
+        .m_data_o(m_data_o[2*DataWidth-1:DataWidth])
     );
 
 endmodule
