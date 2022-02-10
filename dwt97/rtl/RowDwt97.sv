@@ -78,14 +78,16 @@ module RowDwt97 #(
         .m_data_o(m_data)
     );
 
-    // skip first 4 coeff
+    // skip first N coeff
+    localparam SkipNum = 8;
+    localparam SkipCntWidth = $clog2(SkipNum + 1);
 
-    logic [2:0] skip_cnt;
+    logic [SkipCntWidth-1:0] skip_cnt;
     always_ff @(posedge clk_i) begin
         if (rst_i | m_eol) begin
             skip_cnt <= 0;
         end else begin
-            if (m_valid & m_ready & skip_cnt != 4) begin
+            if (m_valid & m_ready & skip_cnt != SkipNum) begin
                 skip_cnt <= skip_cnt + 1;
             end
         end
@@ -93,7 +95,7 @@ module RowDwt97 #(
     
     logic need_sof;
     always_ff @(posedge clk_i) begin
-        if (rst_i | (skip_cnt == 4)) begin
+        if (rst_i | (skip_cnt == SkipNum)) begin
             need_sof <= 0;
         end else begin
             if (skip_cnt == 0 & m_valid & m_ready) begin
@@ -103,10 +105,10 @@ module RowDwt97 #(
     end
 
 
-    assign m_ready = (skip_cnt == 4) ? m_ready_i : 1;
-    assign m_valid_o = (skip_cnt == 4) ? m_valid : 0;
+    assign m_ready = (skip_cnt == SkipNum) ? m_ready_i : 1;
+    assign m_valid_o = (skip_cnt == SkipNum) ? m_valid : 0;
     assign m_eol_o = m_eol;
-    assign m_sof_o = (skip_cnt == 4) ? need_sof : 0;
+    assign m_sof_o = (skip_cnt == SkipNum) ? need_sof : 0;
     assign m_data_o = m_data;
     
 endmodule

@@ -192,10 +192,10 @@ module ProcessingUnit1D #(
 
     localparam RamAddrWidth = $clog2(MaximumSideSize);
     
+    logic [RamAddrWidth-1:0] raddr, waddr;
+    logic buff_we;
     generate
         if (FilterType == "Column") begin
-            logic [RamAddrWidth-1:0] raddr, waddr;
-            logic buff_we;
         
             Bram #(
                 .DataWidth(DataWidth),
@@ -244,10 +244,9 @@ module ProcessingUnit1D #(
             );
         
             assign raddr = (calc_data.eol) ? 0 : waddr + 1;    
-            assign buff_we = calc_valid;
+            assign buff_we = calc_do_op;
         end 
         else if (FilterType == "Row") begin
-            logic buff_we;
             ShiftReg #(
                 .Width(DataWidth),
                 .Depth(2)
@@ -266,7 +265,7 @@ module ProcessingUnit1D #(
                 .din_i(d2_buff_in),
                 .dout_o(d2_buff_out)
             );
-            assign buff_we = calc_valid;
+            assign buff_we = calc_do_op;
         end 
         else begin
             illegal_parameter_condition_triggered_will_instantiate_an non_existing_module();

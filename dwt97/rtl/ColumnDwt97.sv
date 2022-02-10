@@ -79,17 +79,19 @@ module ColumnDwt97 #(
         .m_data_o(m_data)
     );
 
-    // skip first 4 lines
+    // skip first N lines
+    localparam SkipNum = 8;
+    localparam SkipCntWidth = $clog2(SkipNum + 1);
 
-    logic [2:0] skip_cnt;
+    logic [SkipCntWidth-1:0] skip_cnt;
     always_ff @(posedge clk_i) begin
         if (rst_i) begin
-            skip_cnt <= 4;
+            skip_cnt <= SkipNum;
         end else begin
             if (m_valid & m_ready) begin
-                if (m_eol & skip_cnt != 4) begin
+                if (m_eol & skip_cnt != SkipNum) begin
                     skip_cnt <= skip_cnt + 1;
-                end else if (skip_cnt == 4 & m_sof) begin
+                end else if (skip_cnt == SkipNum & m_sof) begin
                     skip_cnt <= 0;
                 end
             end
@@ -102,17 +104,17 @@ module ColumnDwt97 #(
             need_sof <= 0;
         end else begin
             if (m_valid & m_ready) begin
-                if (skip_cnt == 4) begin
+                if (skip_cnt == SkipNum) begin
                     need_sof <= m_sof;
                 end               
             end
         end
     end
 
-    assign m_ready = (skip_cnt == 4 & !m_sof) ? m_ready_i : 1;
-    assign m_valid_o = (skip_cnt == 4 & !m_sof) ? m_valid : 0;
+    assign m_ready = (skip_cnt == SkipNum & !m_sof) ? m_ready_i : 1;
+    assign m_valid_o = (skip_cnt == SkipNum & !m_sof) ? m_valid : 0;
     assign m_eol_o = m_eol;
-    assign m_sof_o = (skip_cnt == 4) ? need_sof : 0;
+    assign m_sof_o = (skip_cnt == SkipNum) ? need_sof : 0;
     assign m_data_o = m_data;
     
 endmodule
