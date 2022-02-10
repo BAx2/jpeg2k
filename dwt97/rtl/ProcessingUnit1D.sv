@@ -205,11 +205,13 @@ module ProcessingUnit1D #(
                 .clkb_i(clk_i),
                 // write channel
                 .addra_i(waddr),
+                .ena_i(1),
                 .wea_i(buff_we),
                 .dina_i(d1_buff_in),
                 .douta_o(),
                 // read channel
                 .addrb_i(raddr),
+                .enb_i(calc_do_op),
                 .web_i(1'b0),
                 .dinb_i('h0),
                 .doutb_o(d1_buff_out)
@@ -223,11 +225,13 @@ module ProcessingUnit1D #(
                 .clkb_i(clk_i),
                 // write channel
                 .addra_i(waddr),
+                .ena_i(1),
                 .wea_i(buff_we),
                 .dina_i(d2_buff_in),
                 .douta_o(),
                 // read channel
                 .addrb_i(raddr),
+                .enb_i(calc_do_op),
                 .web_i(1'b0),
                 .dinb_i('h0),
                 .doutb_o(d2_buff_out)
