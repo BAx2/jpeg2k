@@ -1,32 +1,32 @@
 module AxisDemux (
-    Axis.Slave  in,
-    Axis.Master out0,
-    Axis.Master out1,
-    input logic select
+    Axis.Slave  s_axis,
+    Axis.Master m0_axis,
+    Axis.Master m1_axis,
+    input logic select_i
 );
     always_comb begin
-        case (select)
+        case (select_i)
         0: begin
-            out0.data  = in.data;
-            out0.sof   = in.sof;
-            out0.eol   = in.eol;
-            out0.valid = in.valid;
-            in.ready   = out0.ready;
-            out1.data  = 0;
-            out1.sof   = 0;
-            out1.eol   = 0;
-            out1.valid = 0;
+            m0_axis.data  = s_axis.data;
+            m0_axis.sof   = s_axis.sof;
+            m0_axis.eol   = s_axis.eol;
+            m0_axis.valid = s_axis.valid;
+            s_axis.ready  = m0_axis.ready;
+            m1_axis.data  = 0;
+            m1_axis.sof   = 0;
+            m1_axis.eol   = 0;
+            m1_axis.valid = 0;
         end
         default: begin
-            out0.data  = 0;
-            out0.sof   = 0;
-            out0.eol   = 0;
-            out0.valid = 0;
-            in.ready   = out1.ready;
-            out1.data  = in.data;
-            out1.sof   = in.sof;
-            out1.eol   = in.eol;
-            out1.valid = in.valid;
+            m0_axis.data  = 0;
+            m0_axis.sof   = 0;
+            m0_axis.eol   = 0;
+            m0_axis.valid = 0;
+            s_axis.ready  = m1_axis.ready;
+            m1_axis.data  = s_axis.data;
+            m1_axis.sof   = s_axis.sof;
+            m1_axis.eol   = s_axis.eol;
+            m1_axis.valid = s_axis.valid;
         end
         endcase
     end

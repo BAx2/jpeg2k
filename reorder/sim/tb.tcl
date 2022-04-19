@@ -1,4 +1,6 @@
 vlib work
+vlog ../../common/rtl/*.sv
+vlog ../rtl/*.sv
 vlog *.sv
 
 vsim -novopt work.tb

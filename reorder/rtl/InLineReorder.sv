@@ -3,53 +3,59 @@ module InLineReorder #(
     parameter MaxLineSize = 512, 
     parameter DoubleBuff = 1
 ) (
-    Axis.Slave  in,
-    Axis.Master out
-);
-    logic clk, rst;
-    assign clk = in.clk,
-           rst = in.rst;
+    input logic clk_i,
+    input logic rst_i,
 
+    Axis.Slave  s_axis,
+    Axis.Master m_axis
+);
     logic writeData0, writeData1;
-    Axis buffIn1(clk, rst), buffOut1(clk, rst), buffIn2(clk, rst), buffOut2(clk, rst);
+    Axis #(.DataWidth(DataWidth)) buffIn1();
+    Axis #(.DataWidth(DataWidth)) buffOut1();
+    Axis #(.DataWidth(DataWidth)) buffIn2();
+    Axis #(.DataWidth(DataWidth)) buffOut2();
 
     ReorderBuffer #(
         .DataWidth(DataWidth),
         .MaxLineSize(MaxLineSize)
     ) ReorderBufferInst1 (
-        .in(buffIn1),
-        .out(buffOut1),
-        .writeData(writeData0)
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .s_axis(buffIn1),
+        .m_axis(buffOut1),
+        .writeData_o(writeData0)
     );
 
     ReorderBuffer #(
         .DataWidth(DataWidth),
         .MaxLineSize(MaxLineSize)
     ) ReorderBufferInst2 (
-        .in(buffIn2),
-        .out(buffOut2),
-        .writeData(writeData1)
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .s_axis(buffIn2),
+        .m_axis(buffOut2),
+        .writeData_o(writeData1)
     );
 
     logic currentInputBuffer;
 
     AxisDemux DemuxInst (
-        .in(in),
-        .out0(buffIn1),
-        .out1(buffIn2),
-        .select(currentInputBuffer)
+        .s_axis(s_axis),
+        .m0_axis(buffIn1),
+        .m1_axis(buffIn2),
+        .select_i(currentInputBuffer)
     );
 
     generate
         if (DoubleBuff) begin
             AxisMux MuxInst (
-                .in0(buffOut1),
-                .in1(buffOut2),
-                .out(out),
-                .select(!currentInputBuffer)
+                .s0_axis(buffOut1),
+                .s1_axis(buffOut2),
+                .m_axis(m_axis),
+                .select_i(!currentInputBuffer)
             );
-            always_ff @(posedge clk) begin
-                if (rst) begin
+            always_ff @(posedge clk_i) begin
+                if (rst_i) begin
                     currentInputBuffer <= 0;
                 end else begin
                     if ((currentInputBuffer == 0) & writeData0 & !writeData1)
@@ -60,10 +66,10 @@ module InLineReorder #(
             end
         end else begin
             AxisMux MuxInst (
-                .in0(buffOut1),
-                .in1(buffOut2),
-                .out(out),
-                .select(currentInputBuffer)
+                .s0_axis(buffOut1),
+                .s1_axis(buffOut2),
+                .m_axis(m_axis),
+                .select_i(currentInputBuffer)
             );
             assign currentInputBuffer = 0;
         end
