@@ -9,16 +9,18 @@ localparam RandomOutReady = 1;
 localparam RandomInValid = 1;
 
 logic clk, rst;
-Axis out(clk, rst);
-Axis in(clk, rst);
+Axis #(.DataWidth(DataWidth)) out();
+Axis #(.DataWidth(DataWidth)) in();
 
 InLineReorder #(
     .DataWidth(DataWidth),
     .MaxLineSize(MaxLineSize),
     .DoubleBuff(DoubleBuff)
 ) DUT (
-    .in(in),
-    .out(out)
+    .clk_i(clk)
+    .rst_i(rst)
+    .s_axis(in),
+    .m_axis(out)
 );
 
 always #5 clk = !clk;

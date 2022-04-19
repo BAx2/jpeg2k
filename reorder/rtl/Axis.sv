@@ -1,20 +1,20 @@
 
 interface Axis #(
-    parameter Width = 8
+    parameter DataWidth = 8
 )(
-    input logic clk,
-    input logic rst
+    // input logic clk,
+    // input logic rst
 );
 
-logic [Width-1 : 0]data;
+logic [DataWidth-1 : 0] data;
 logic valid;
 logic ready;
 logic sof;
 logic eol;
 
 modport Master (
-    input clk,
-    input rst,
+    // input clk,
+    // input rst,
     output data,
     output sof,
     output eol,
@@ -23,8 +23,8 @@ modport Master (
 );
 
 modport Slave (
-    input clk,
-    input rst,
+    // input clk,
+    // input rst,
     input data,
     input valid,
     input sof,
@@ -33,8 +33,8 @@ modport Slave (
 );
 
 modport Monitor (
-    input clk,
-    input rst,
+    // input clk,
+    // input rst,
     input data,
     input sof,
     input eol,
