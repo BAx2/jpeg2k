@@ -1,5 +1,6 @@
 module Dffenr #(
-    parameter Width = 16
+    parameter Width = 16,
+    parameter ResetVal = 'b0
 ) (
     input   logic               clk_i,
     input   logic               rst_i,
@@ -9,7 +10,7 @@ module Dffenr #(
 );
     always_ff @(posedge clk_i) begin
         if (rst_i) begin
-            dout_o <= 'b0;
+            dout_o <= ResetVal;
         end else begin
             if (en_i) begin
                 dout_o <= din_i;

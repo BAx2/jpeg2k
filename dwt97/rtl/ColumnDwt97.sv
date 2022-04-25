@@ -72,7 +72,7 @@ module ColumnDwt97 #(
         .s_sof_i(sof),
         .s_eol_i(eol),
 
-        .s_data_i(data_int),
+        .s_data_i(data),
         
         .m_ready_i(m_ready),
         .m_valid_o(m_valid),
@@ -81,34 +81,42 @@ module ColumnDwt97 #(
         .m_data_o(m_data)
     );
 
-    // skip first 4 lines
+    // skip first N lines
+    localparam SkipNum = 8;
+    localparam SkipCntWidth = $clog2(SkipNum + 1);
 
-    logic [2:0] skip_cnt;
-    logic       sof;
+    logic [SkipCntWidth-1:0] skip_cnt;
     always_ff @(posedge clk_i) begin
         if (rst_i) begin
-            skip_cnt <= 0;
+            skip_cnt <= SkipNum;
         end else begin
-            if (m_valid & m_ready & m_eol & skip_cnt != 4) begin
-                skip_cnt <= skip_cnt + 1;
+            if (m_valid & m_ready) begin
+                if (m_eol & skip_cnt != SkipNum) begin
+                    skip_cnt <= skip_cnt + 1;
+                end else if (skip_cnt == SkipNum & m_sof) begin
+                    skip_cnt <= 0;
+                end
             end
         end
     end
-
+    
+    logic       need_sof;
     always_ff @(posedge clk_i) begin
-        if (rst_i | (m_valid & m_ready & sof)) begin
-            sof <= 0;
+        if (rst_i) begin
+            need_sof <= 0;
         end else begin
-            if (skip_cnt == 3 & m_valid & m_ready & m_eol) begin
-                sof <= 1;
+            if (m_valid & m_ready) begin
+                if (skip_cnt == SkipNum) begin
+                    need_sof <= m_sof;
+                end               
             end
         end
     end
 
-    assign m_ready = (skip_cnt == 4) ? m_ready_i : 1;
-    assign m_valid_o = (skip_cnt == 4) ? m_valid : 0;
-    assign m_eol_o = (skip_cnt == 4) ? m_eol : 0;
-    assign m_sof = (skip_cnt == 4) ? sof : 0;
+    assign m_ready = (skip_cnt == SkipNum & !m_sof) ? m_ready_i : 1;
+    assign m_valid_o = (skip_cnt == SkipNum & !m_sof) ? m_valid : 0;
+    assign m_eol_o = m_eol;
+    assign m_sof_o = (skip_cnt == SkipNum) ? need_sof : 0;
     assign m_data_o = m_data;
     
 endmodule

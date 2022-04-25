@@ -7,11 +7,15 @@ vlog ../rtl/BorderExpander.sv \
 vsim -novopt work.tb_expander
 log * -r
 add wave *
-add wave DUT/*
-add wave DUT/EvenBuffInst/shreg
-add wave DUT/OddBuffInst/shreg
+add wave test_dout
 
-run 300ns
+add wave -divider -height 40
+
+add wave DUT/*
+add wave DUT/ShiftRegInst/shreg
+# add wave DUT/OddBuffInst/shreg
+
+run 500ns
 
 configure wave -namecolwidth 137
 configure wave -valuecolwidth 91

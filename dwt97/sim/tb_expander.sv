@@ -20,9 +20,11 @@ module tb_expander ();
     int                     test_dout_size;
     logic [2*DataWidth-1:0] test_dout           [0:2*DinSize];
     int                     expected_dout_size;
-    logic [2*DataWidth-1:0] expected_dout       [0:DinSize-1+4];
+    logic [2*DataWidth-1:0] expected_dout       [0:DinSize+8];
     
     logic [DataWidth-1:0] even_out, odd_out;
+
+    logic   end_sim;
 
     always #(5) clk_i = !clk_i;
 
@@ -34,32 +36,35 @@ module tb_expander ();
     end
 
     initial begin
-        test_din[0] = { 8'd01, 8'd00 };
-        test_din[1] = { 8'd03, 8'd02 };
-        test_din[2] = { 8'd05, 8'd04 };
-        test_din[3] = { 8'd07, 8'd06 };
-        test_din[4] = { 8'd09, 8'd08 };
-        test_din[5] = { 8'd11, 8'd10 };
-        test_din[6] = { 8'd13, 8'd12 };
-        test_din[7] = { 8'd15, 8'd14 };
+        test_din[0] = { 8'd00, 8'd01 };
+        test_din[1] = { 8'd00, 8'd02 };
+        test_din[2] = { 8'd00, 8'd03 };
+        test_din[3] = { 8'd00, 8'd04 };
+        test_din[4] = { 8'd00, 8'd05 };
+        test_din[5] = { 8'd00, 8'd06 };
+        test_din[6] = { 8'd00, 8'd07 };
+        test_din[7] = { 8'd00, 8'd08 };
 
-        expected_dout_size = DinSize/2 + 4;
-        expected_dout[0] = { 8'd3, 8'd4 };
-        expected_dout[1] = { 8'd1, 8'd2 };
+        expected_dout_size = 16;
 
-        expected_dout[2] = { 8'd1, 8'd0 };
-        expected_dout[3] = { 8'd3, 8'd2 };
-        expected_dout[4] = { 8'd5, 8'd4 };
+        expected_dout[0]  = { 8'd00, 8'd05 };
+        expected_dout[1]  = { 8'd00, 8'd04 };
+        expected_dout[2]  = { 8'd00, 8'd03 };
+        expected_dout[3]  = { 8'd00, 8'd02 };
         
-        expected_dout[5] = { 8'd7, 8'd6 };
-        expected_dout[6] = { 8'd09, 8'd08 };
-        
-        expected_dout[7] = { 8'd11, 8'd10 };
-        expected_dout[8] = { 8'd13, 8'd12 };
-        expected_dout[9] = { 8'd15, 8'd14 };
-        
-        expected_dout[10] = { 8'd13, 8'd14 };
-        expected_dout[11] = { 8'd11, 8'd12 };
+        expected_dout[4]  = { 8'd00, 8'd01 };
+        expected_dout[5]  = { 8'd00, 8'd02 };
+        expected_dout[6]  = { 8'd00, 8'd03 };
+        expected_dout[7]  = { 8'd00, 8'd04 };
+        expected_dout[8]  = { 8'd00, 8'd05 };
+        expected_dout[9]  = { 8'd00, 8'd06 };
+        expected_dout[10] = { 8'd00, 8'd07 };
+        expected_dout[11] = { 8'd00, 8'd08 };
+
+        expected_dout[12] = { 8'd00, 8'd07 };
+        expected_dout[13] = { 8'd00, 8'd06 };
+        expected_dout[14] = { 8'd00, 8'd05 };
+        expected_dout[15] = { 8'd00, 8'd04 };
     end
 
     always @(posedge clk_i) begin
@@ -82,6 +87,7 @@ module tb_expander ();
     endtask //automatic
 
     initial begin
+        end_sim = 0;
         clk_i = 0;
         rst_i = 1;
 
@@ -93,6 +99,7 @@ module tb_expander ();
         for (int i = 0; i < DinSize/2; i++)
             WriteAxis(test_din[i], i == 0, (i == DinSize/2-1));
 
+        end_sim = 1;
         for (int i = 0; i < 20; i++)
             @(negedge clk_i);
 
@@ -106,8 +113,10 @@ module tb_expander ();
     end
 
     always @(posedge clk_i) begin
-        // m_ready_i = $urandom_range(0, 1);
-        m_ready_i = 1;
+        m_ready_i = $urandom_range(0, 1);
+        s_valid_i = $urandom_range(0, 1) & !end_sim;
+        // m_ready_i = 1;
+        // s_valid_i = !end_sim;
     end
 
    

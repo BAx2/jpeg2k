@@ -1,12 +1,3 @@
-// input 
-//  0 2 4 6
-//  1 3 5 7
-// output 
-//  4 2 | 0 2 4 6 | 6 4
-//  3 1 | 1 3 5 7 | 5 3
-
-// minimum row length = 16
-
 module BorderExpander #(
     parameter     DataWidth  = 16,
     parameter bit EnableInputReg = 1
@@ -26,175 +17,200 @@ module BorderExpander #(
     output  logic                                   m_eol_o,
     output  logic   [2*DataWidth-1:0]               m_data_o
 );
-    localparam BufferSize = 3;
-    localparam AddrWidth = $clog2(BufferSize);
-    
+    localparam ExpandSize = 4;
+    localparam BufferSize = ExpandSize + 1;
+
+    typedef enum { 
+        FillBuffer, // fill buffer (shift_en)
+        ExpandLeft, // transmit data from buffer (delay from min to max delay)
+        Normal,     // (max delay, shift_en)
+        NearRight,  // tx from max to min
+        ExpandRight // tx from min to max
+    } state_t;
+    state_t state, next_state;
+
     typedef struct packed {
         logic sof;
         logic eol;
         logic [2*DataWidth-1:0] data;
     } axis_t;
-    
+
     axis_t s_axis_data;
     logic s_eol, s_sof, s_valid, s_ready;
     logic [2*DataWidth-1:0] s_data;
+    
     axis_t m_axis_data;
     logic m_eol, m_sof, m_valid, m_ready;
     logic [2*DataWidth-1:0] m_data;
 
+    logic new_in_sample;
+    logic new_out_sample;
 
-    logic new_in;
-    logic sof;
-    logic [DataWidth-1:0] s_odd, s_even;
-    logic [DataWidth-1:0] m_odd, m_even;
-    logic new_out;
+    assign new_in_sample = s_valid & s_ready,
+           new_out_sample = m_valid & m_ready;
     
-    logic [AddrWidth-1:0] odd_addr, even_addr;
-    logic odd_transperent, even_transperent;
-
-    logic [DataWidth-1:0] odd_buff, even_buff;    
-    logic buff_we;
-
-    
-    ShiftRegAddr #(
-        .Width(DataWidth),
-        .Depth(BufferSize)
-    ) EvenBuffInst (
-        .clk_i(clk_i),
-        .en_i(buff_we),
-        .din_i(s_even),
-        .addr_i(even_addr),
-        .dout_o(even_buff)
-    );
+    logic                          buffer_we;
+    logic [$clog2(BufferSize)-1:0] buff_addr;
 
     ShiftRegAddr #(
-        .Width(DataWidth),
+        .Width(2*DataWidth),
         .Depth(BufferSize)
-    ) OddBuffInst (
+    ) ShiftRegInst (
         .clk_i(clk_i),
-        .en_i(buff_we),
-        .din_i(s_odd),
-        .addr_i(odd_addr),
-        .dout_o(odd_buff)
+        .en_i(buffer_we),
+        .din_i(s_data),
+        .addr_i(buff_addr),
+        .dout_o(m_data)
     );
-
-    Mux2 #(
-        .Width(DataWidth)
-    ) EvenMuxInst (
-        .a_i(even_buff),
-        .b_i(s_even),
-        .s_i(even_transperent),
-        .m_o(m_even)
-    );
-
-    Mux2 #(
-        .Width(DataWidth)
-    ) OddMuxInst (
-        .a_i(odd_buff),
-        .b_i(s_odd),
-        .s_i(odd_transperent),
-        .m_o(m_odd)
-    );
-
-    assign m_data = { m_odd, m_even };
-
-    assign s_even = s_data[DataWidth-1:0];
-    assign s_odd  = s_data[2*DataWidth-1:DataWidth];
-    
-    assign new_in = s_valid & s_ready;
-    assign new_out = m_valid & m_ready;
-
-    assign buff_we = new_in;
-
-    logic [3:0] expand_cnt;
-    always_ff @(posedge clk_i) begin
-        if (rst_i | expand_cnt == 9) begin
-            expand_cnt <= 0;
-        end else if (new_in | new_out) begin
-            if (expand_cnt != 7 | s_eol) begin
-                expand_cnt <= expand_cnt + 1;
-            end
-        end
-    end
 
     always_ff @(posedge clk_i) begin
         if (rst_i) begin
-            sof <= 0;
+            state <= FillBuffer;
         end else begin
-            if (new_in & expand_cnt == 0) begin
-                sof <= s_sof;
-            end
+            state <= next_state;
         end
     end
 
-    assign s_ready = (expand_cnt < 3) | (expand_cnt == 7);
-    assign m_valid = (expand_cnt > 1);
-    assign m_eol = (expand_cnt == 9);
-    assign m_sof = (expand_cnt == 2) ? sof : 0;
+    logic [$clog2(BufferSize)-1:0] fill_cnt;
+    logic [$clog2(BufferSize)-1:0] addr_cnt;
+    logic need_sof;
 
+    // sof
+    always_ff @(posedge clk_i) begin
+        if (rst_i) begin
+            need_sof <= 0;
+        end else begin
+            if (new_in_sample & (state == FillBuffer) & fill_cnt == 0)
+                need_sof <= s_sof;
+            if (need_sof & new_out_sample & (state == ExpandLeft))
+                need_sof <= 0;
+        end
+    end
+    // store left border
+    always_ff @(posedge clk_i) begin
+        if (rst_i) begin
+            fill_cnt <= 0;
+        end else if (new_in_sample) begin
+            if (state == FillBuffer) begin
+                if (fill_cnt != ExpandSize) begin
+                    fill_cnt <= fill_cnt + 1;
+                end 
+            end else begin
+                fill_cnt <= 0;
+            end
+        end
+    end
+    // sh reg addr
+    always_ff @(posedge clk_i) begin
+        if (rst_i) begin
+            addr_cnt <= 0;
+        end else begin
+            case (state)
+                FillBuffer: begin
+                    addr_cnt <= 0;
+                end
+                ExpandLeft: begin
+                    if (new_out_sample)
+                        addr_cnt <= addr_cnt + 1;
+                end
+                Normal:     begin
+                    addr_cnt <= addr_cnt;
+                end
+                NearRight:  begin
+                    if (new_out_sample) begin
+                        if (addr_cnt != 0) begin
+                            addr_cnt <= addr_cnt - 1;                    
+                        end else begin
+                            addr_cnt <= 1;
+                        end
+                    end
+                end
+                ExpandRight:begin
+                    if (new_out_sample)
+                        addr_cnt <= addr_cnt + 1;                    
+                end
+                default:    begin
+                    addr_cnt <= addr_cnt;
+                end
+            endcase
+        end
+    end
+    assign buff_addr = addr_cnt;
+    // next state
     always_comb begin
-        case (expand_cnt)
-            // left border
-            2: begin
-                even_transperent = 1;
-                even_addr = 0;
-                odd_transperent = 0;
-                odd_addr = 0;
+        case (state)
+            FillBuffer: begin
+                if (fill_cnt == ExpandSize)
+                    next_state = ExpandLeft;
+                else
+                    next_state = FillBuffer;
             end
-            3: begin
-                even_transperent = 0;
-                even_addr = 1;
-                odd_transperent = 0;
-                odd_addr = 2;
+            ExpandLeft: begin
+                if ((addr_cnt == ExpandSize-1) & new_out_sample)
+                    next_state = Normal;
+                else
+                    next_state = ExpandLeft;
             end
-            4: begin
-                even_transperent = 0;
-                even_addr = 2;
-                odd_transperent = 0;
-                odd_addr = 2;                
+            Normal: begin
+                if (s_eol & new_in_sample)
+                    next_state = NearRight;
+                else
+                    next_state = Normal;
             end
-            5: begin
-                even_transperent = 0;
-                even_addr = 1;
-                odd_transperent = 0;
-                odd_addr = 1;                
+            NearRight: begin
+                if ((addr_cnt == 0) & new_out_sample)
+                    next_state = ExpandRight;
+                else
+                    next_state = NearRight;
             end
-            6: begin
-                even_transperent = 0;
-                even_addr = 0;
-                odd_transperent = 0;
-                odd_addr = 0;
-            end
-            // center 
-            7: begin
-                even_transperent = 1;
-                even_addr = 0;
-                odd_transperent = 1;
-                odd_addr = 0;
-            end
-            // right border
-            8: begin
-                even_transperent = 0;
-                even_addr = 0;
-                odd_transperent = 0;
-                odd_addr = 1;
+            ExpandRight: begin
+                if (addr_cnt == ExpandSize & new_out_sample)
+                    next_state = FillBuffer;
+                else
+                    next_state = ExpandRight;
             end 
-            9: begin
-                even_transperent = 0;
-                even_addr = 1;
-                odd_transperent = 0;
-                odd_addr = 2;
-            end 
-            // 
             default: begin
-                even_transperent = 0;
-                even_addr = 1;
-                odd_transperent = 0;
-                odd_addr = 2;
+                next_state = FillBuffer;
             end 
         endcase
     end
+    // s_ready m_ready buff_we
+    always_comb
+        case (state)
+            FillBuffer: begin
+                s_ready = 1;
+                m_valid = 0;
+                buffer_we = new_in_sample;
+            end
+            ExpandLeft: begin
+                s_ready = 0;
+                m_valid = 1;
+                buffer_we = 0;
+            end
+            Normal: begin
+                s_ready = m_ready;
+                m_valid = s_valid;
+                buffer_we = new_in_sample;
+            end
+            NearRight:  begin
+                s_ready = 0;
+                m_valid = 1;
+                buffer_we = 0;
+            end
+            ExpandRight:    begin
+                s_ready = 0;
+                m_valid = 1;
+                buffer_we = 0;
+            end
+            default:    begin
+                s_ready = 0;
+                buffer_we = 0;
+                m_valid = 0;
+            end
+        endcase
 
+    assign m_eol = (state == ExpandRight) & (addr_cnt == ExpandSize);
+    assign m_sof = need_sof;
 
     AxisReg #(
         .DataWidth($bits(axis_t)),
@@ -202,11 +218,11 @@ module BorderExpander #(
     ) InputRegInst (
         .clk_i(clk_i),
         .rst_i(rst_i),
-        
+
         .s_data_i({s_sof_i, s_eol_i, s_data_i}),
         .s_valid_i(s_valid_i),
         .s_ready_o(s_ready_o),
-        
+
         .m_data_o(s_axis_data),
         .m_valid_o(s_valid),
         .m_ready_i(s_ready)
@@ -221,11 +237,11 @@ module BorderExpander #(
     ) OutputRegInst (
         .clk_i(clk_i),
         .rst_i(rst_i),
-        
+
         .s_data_i({m_sof, m_eol, m_data}),
         .s_valid_i(m_valid),
         .s_ready_o(m_ready),
-        
+
         .m_data_o(m_axis_data),
         .m_valid_o(m_valid_o),
         .m_ready_i(m_ready_i)
@@ -234,5 +250,5 @@ module BorderExpander #(
     assign m_sof_o = m_axis_data.sof,
            m_eol_o = m_axis_data.eol,
            m_data_o = m_axis_data.data;
-    
+
 endmodule
