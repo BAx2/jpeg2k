@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 
-module dma
+module Dma
 #(
     parameter DMA_DATA_WIDTH_SRC = 64,
     parameter DMA_AXI_ADDR_WIDTH = 32

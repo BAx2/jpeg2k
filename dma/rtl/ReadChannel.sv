@@ -1,4 +1,4 @@
-`include "axi4.svh"
+`include "../rtl/axi4.svh"
 
 module ReadChannel #(
     parameter DMA_DATA_WIDTH_SRC = 64,
