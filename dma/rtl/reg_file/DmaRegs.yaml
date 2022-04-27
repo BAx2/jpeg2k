@@ -1,0 +1,247 @@
+regmap:
+# -   name: MM2S_CR
+#     description: MM2S Control Register
+#     address: 0
+#     bitfields:
+#     -   name: IRQ_EN
+#         description: Interrupt Enable
+#         reset: 0
+#         width: 1
+#         lsb: 0
+#         access: rw
+#         hardware: o
+#         enums: []
+
+# -   name: MM2S_SR
+#     description: MM2S Status Register
+#     address: 4
+#     bitfields:
+#     -   name: HALTED
+#         description: Indicates the run/stop state of the DMA channel
+#         reset: 1
+#         width: 1
+#         lsb: 0
+#         access: ro
+#         hardware: i
+#         enums: []
+
+# -   name: S2MM_CR
+#     description: S2MM Control Register
+#     address: 40
+#     bitfields:
+#     -   name: IRQ_EN
+#         description: Interrupt Enable
+#         reset: 0
+#         width: 1
+#         lsb: 0
+#         access: rw
+#         hardware: o
+#         enums: []
+
+# -   name: S2MM_SR
+#     description: S2MM Status Register
+#     address: 44
+#     bitfields:
+#     -   name: HALTED
+#         description: Indicates the run/stop state of the DMA channel
+#         reset: 1
+#         width: 1
+#         lsb: 0
+#         access: ro
+#         hardware: i
+#         enums: []
+
+# -   name: MM2S_SIZE
+#     description: MM2S Size Register
+#     address: 80
+#     bitfields:
+#     -   name: VERTICAL
+#         description: MM2S Vertical Size
+#         reset: 0
+#         width: 16
+#         lsb: 0
+#         access: rw
+#         hardware: o
+#         enums: []
+#     -   name: HORIZONTAL
+#         description: MM2S Horizontal Size
+#         reset: 0
+#         width: 16
+#         lsb: 16
+#         access: rw
+#         hardware: o
+#         enums: []
+
+# -   name: MM2S_STRIDE
+#     description: MM2S Stride Register
+#     address: 84
+#     bitfields:
+#     -   name: STRIDE
+#         description: Indicates the number of address bytes between the first pixels of each video line
+#         reset: 0
+#         width: 16
+#         lsb: 0
+#         access: rw
+#         hardware: o
+#         enums: []
+
+# -   name: MM2S_START_ADDR
+#     description: MM2S Frame start address
+#     address: 88
+#     bitfields:
+#     -   name: ADDR
+#         description: Indicates the Start Address
+#         reset: 0
+#         width: 32
+#         lsb: 0
+#         access: rw
+#         hardware: o
+#         enums: []
+
+# -   name: S2MM_SIZE
+#     description: S2MM Size Register
+#     address: 160
+#     bitfields:
+#     -   name: VERTICAL
+#         description: S2MM Vertical Size
+#         reset: 0
+#         width: 16
+#         lsb: 0
+#         access: rw
+#         hardware: o
+#         enums: []
+#     -   name: HORIZONTAL
+#         description: S2MM Horizontal Size
+#         reset: 0
+#         width: 16
+#         lsb: 16
+#         access: rw
+#         hardware: o
+#         enums: []
+
+# -   name: S2MM_STRIDE
+#     description: S2MM Stride Register
+#     address: 164
+#     bitfields:
+#     -   name: STRIDE
+#         description: Indicates the number of address bytes between the first pixels of each video line
+#         reset: 0
+#         width: 16
+#         lsb: 0
+#         access: rw
+#         hardware: o
+#         enums: []
+
+# -   name: S2MM_START_ADDR
+#     description: S2MM Frame start address
+#     address: 168
+#     bitfields:
+#     -   name: ADDR
+#         description: Indicates the Start Address
+#         reset: 0
+#         width: 32
+#         lsb: 0
+#         access: rw
+#         hardware: o
+#         enums: []
+
+-   name: DEBUG_CR
+    description: DMA Control
+    address: 240
+    bitfields:
+    -   name: MM2S_LEN
+        description: The burst length
+        reset: 0
+        width: 8
+        lsb: 0
+        access: rw
+        hardware: o
+        enums: []
+    -   name: MM2S_SIZE
+        description: The number of bytes in a transfer must be equal to the data bus width
+        reset: 0
+        width: 3
+        lsb: 8
+        access: rw
+        hardware: o
+        enums: []
+    -   name: MM2S_START
+        description: Start read transaction 
+        reset: 0
+        width: 1
+        lsb: 12
+        access: rw
+        hardware: o
+        enums: []
+
+    -   name: S2MM_LEN
+        description: The burst length
+        reset: 0
+        width: 8
+        lsb: 16
+        access: rw
+        hardware: o
+        enums: []
+    -   name: S2MM_SIZE
+        description: The number of bytes in a transfer must be equal to the data bus width
+        reset: 0
+        width: 3
+        lsb: 24
+        access: rw
+        hardware: o
+        enums: []
+    -   name: S2MM_START
+        description: Start read transaction 
+        reset: 0
+        width: 1
+        lsb: 28
+        access: rw
+        hardware: o
+        enums: []
+
+-   name: DEBUG_SR
+    description: DMA Status
+    address: 244
+    bitfields:
+    -   name: MM2S_BUSY
+        description: Read transaction in process
+        reset: 0
+        width: 1
+        lsb: 0
+        access: ro
+        hardware: i
+        enums: []
+    -   name: S2MM_BUSY
+        description: Write transaction in process
+        reset: 0
+        width: 1
+        lsb: 1
+        access: ro
+        hardware: i
+        enums: []
+
+-   name: DEBUG_MM2S_ADDR
+    description: MM2S Start address
+    address: 248
+    bitfields:
+    -   name: ADDR
+        description: Indicates the Start Address
+        reset: 0
+        width: 32
+        lsb: 0
+        access: rw
+        hardware: o
+        enums: []
+
+-   name: DEBUG_S2MM_ADDR
+    description: S2MM Start address
+    address: 252
+    bitfields:
+    -   name: ADDR
+        description: Indicates the Start Address
+        reset: 0
+        width: 32
+        lsb: 0
+        access: rw
+        hardware: o
+        enums: []

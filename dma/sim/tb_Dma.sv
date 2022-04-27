@@ -1,9 +1,14 @@
 `timescale 1ns/1ns
+`include "../rtl/reg_file/hw/DmaRegs_pkg.sv"
 
 module tb_Dma ();
     parameter DMA_DATA_WIDTH_SRC = 64;
     parameter DMA_AXI_ADDR_WIDTH = 32;
     parameter MEM_DEPTH = 64;
+    parameter AXIL_ADDR_W = 8;
+    parameter AXIL_DATA_W = 32;
+    parameter AXIL_STRB_W = AXIL_DATA_W / 8;
+
 
     logic                              m_axi_aclk;
     logic                              m_axi_aresetn;
@@ -50,44 +55,26 @@ module tb_Dma ();
     logic                              s_s2mm_axis_tready;
     
     // control
-    logic                              read_start_i;
-    logic  [DMA_AXI_ADDR_WIDTH-1:0]    read_addr_i;
-    logic  [ 7:0]                      read_len_i;
-    logic  [ 2:0]                      read_size_i;
-    logic                              read_busy_o;
-
-    logic                              write_start_i;
-    logic  [DMA_AXI_ADDR_WIDTH-1:0]    write_addr_i;
-    logic  [ 7:0]                      write_len_i;
-    logic  [ 2:0]                      write_size_i;
-    logic                              write_busy_o;
-
-    logic                              start;
-    logic  [ 7:0]                      len;
-    logic  [ 2:0]                      size;
+    AxiLite axi(m_axi_aclk);
 
     always #5 m_axi_aclk = !m_axi_aclk;
 
     `define WAIT_WHILE(signal) while ((signal)) @(posedge m_axi_aclk);
 
-    assign write_start_i = start,
-           read_start_i = start,
-           write_len_i = len,
-           read_len_i = len,
-           write_size_i = size,
-           read_size_i = size;
+    typedef logic [AXIL_DATA_W-1:0] axil_data_t;
+    axil_data_t  wdata;
+    axil_data_t  rdata;
 
     initial begin
+        logic        start;
+        logic [ 7:0] len;
+        logic [ 2:0] size;
+
         $timeformat(-9, 0, " ns", 20);
         $display("\t\tTime: %5t \t Reset!", $time);
+        axi.Reset();
         m_axi_aclk = 1;
         m_axi_aresetn = 0;
-        read_addr_i = 0;
-        write_addr_i = 0;
-        start = 0;
-        len = 0;
-        size = 3; // 8 byte (64 bit) at one clock cycle
-
         @(posedge m_axi_aclk);
         @(posedge m_axi_aclk);
 
@@ -95,13 +82,27 @@ module tb_Dma ();
 
         @(posedge m_axi_aclk);
         $display("\t\tTime: %5t \t Start!", $time);
+
+        axi.Write(DmaRegs_pkg::DMA_CSR_DEBUG_MM2S_ADDR_ADDR, 32'd00);
+        axi.Write(DmaRegs_pkg::DMA_CSR_DEBUG_S2MM_ADDR_ADDR, 32'd32);
+
         start = 1;
+        size = 3;
         len = 16 - 1;
-        write_addr_i = 32;
-        @(posedge m_axi_aclk);
+        start = 1;
+        wdata = {3'b0, start, 1'b0, size, len,
+                 3'b0, start, 1'b0, size, len};
+        axi.Write(DmaRegs_pkg::DMA_CSR_DEBUG_CR_ADDR, wdata);
+
         start = 0;
-        @(posedge m_axi_aclk);
-        `WAIT_WHILE(write_busy_o);
+        wdata = {3'b0, start, 1'b0, size, len,
+                 3'b0, start, 1'b0, size, len};
+        axi.Write(DmaRegs_pkg::DMA_CSR_DEBUG_CR_ADDR, wdata);
+
+        do begin
+            axi.Read(DmaRegs_pkg::DMA_CSR_DEBUG_SR_ADDR, rdata);        
+        end while (rdata != 0);
+
         $display("\t\tTime: %5t \t Finish!", $time);
     end
 
@@ -110,11 +111,32 @@ module tb_Dma ();
            s_s2mm_axis_tlast  = m_mm2s_axis_tlast,
            m_mm2s_axis_tready = s_s2mm_axis_tready;
 
-    Dma
-    #(
+    Dma #(
         .DMA_DATA_WIDTH_SRC(DMA_DATA_WIDTH_SRC),
-        .DMA_AXI_ADDR_WIDTH(DMA_AXI_ADDR_WIDTH)
+        .DMA_AXI_ADDR_WIDTH(DMA_AXI_ADDR_WIDTH),
+        .AXIL_ADDR_W(AXIL_ADDR_W),
+        .AXIL_DATA_W(AXIL_DATA_W),
+        .AXIL_STRB_W(AXIL_STRB_W)
     ) DUT (
+        .axil_awaddr(axi.awaddr),
+        .axil_awprot(axi.awprot),
+        .axil_awvalid(axi.awvalid),
+        .axil_awready(axi.awready),
+        .axil_wdata(axi.wdata),
+        .axil_wstrb(axi.wstrb),
+        .axil_wvalid(axi.wvalid),
+        .axil_wready(axi.wready),
+        .axil_bresp(axi.bresp),
+        .axil_bvalid(axi.bvalid),
+        .axil_bready(axi.bready),
+        .axil_araddr(axi.araddr),
+        .axil_arprot(axi.arprot),
+        .axil_arvalid(axi.arvalid),
+        .axil_arready(axi.arready),
+        .axil_rdata(axi.rdata),
+        .axil_rresp(axi.rresp),
+        .axil_rvalid(axi.rvalid),
+        .axil_rready(axi.rready),
         .*
     );
 

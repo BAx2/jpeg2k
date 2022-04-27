@@ -68,13 +68,20 @@ module AxiMemory #(
 
     typedef logic [DMA_AXI_ADDR_WIDTH-1:0] addr_t;
 
+    logic read_busy;
+    logic write_busy;
+    initial begin
+        read_busy = 0;
+        write_busy = 0;
+    end
+
     // read 
     addr_t read_addr;
     logic [7:0] read_len;
-    logic start_read;
     assign m_mm2s_axi_arready = 1'b1;
     always @(posedge m_axi_aclk) begin
-        if (m_mm2s_axi_arready & m_mm2s_axi_arvalid) begin
+        if (m_mm2s_axi_arready & m_mm2s_axi_arvalid & !read_busy) begin
+            read_busy = 1;
             read_addr = m_mm2s_axi_araddr;
             read_len = m_mm2s_axi_arlen;
 
@@ -90,7 +97,7 @@ module AxiMemory #(
             end
             m_mm2s_axi_rvalid = 0;
             m_mm2s_axi_rlast = 0;
-            start_read = 0;
+            read_busy = 0;
         end
     end
 
@@ -99,11 +106,12 @@ module AxiMemory #(
     logic [7:0] write_len;
     assign m_s2mm_axi_awready = 1'b1;
     always @(posedge m_axi_aclk) begin
-        if (m_s2mm_axi_awready & m_s2mm_axi_awvalid) begin
+        if (m_s2mm_axi_awready & m_s2mm_axi_awvalid & !write_busy) begin
+            write_busy = 1;
             write_addr = m_s2mm_axi_awaddr;
             write_len = m_s2mm_axi_awlen;
 
-            for (int i = 0; i <= read_len; i++) begin
+            for (int i = 0; i <= write_len; i++) begin
                 `WAIT_HIGH(m_s2mm_axi_wvalid);
                 mem[write_addr + i] = m_s2mm_axi_wdata;
                 @(posedge m_axi_aclk);
@@ -115,6 +123,7 @@ module AxiMemory #(
             m_s2mm_axi_bvalid = 1;
             @(posedge m_axi_aclk);
             m_s2mm_axi_bvalid = 0;
+            write_busy = 0;
         end
     end
 
