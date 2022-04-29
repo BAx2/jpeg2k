@@ -20,114 +20,70 @@ module ReadAddressFormer
     output  logic   [ADDR_W-1:0]    odd_addr_o,
     output  logic   [ 7:0]          len_o
 );
-    localparam EXPAND_SIZE = 4;
+    // TODO: implement line address forming without mult
 
+    localparam EXPAND_TYPE = "forward";
     typedef logic [ADDR_W-1:0] addr_t;
 
-    // localparam EXPAND_SIZE = 4;
-    //                       e o e o e o e o e o       e   o   e   o   e   o
-    //          for forward: 4 3 2 1 0 1 2 3 4 5 ... N-2 N-1 N-2 N-3 N-4 N-5
-    addr_t vsize;
-    addr_t hsize;
+    logic  start_reg, start, busy;
+    always_ff @(posedge clk_i) start_reg <= start_i;
+    assign start = !start_reg & start_i & !busy;
+
     addr_t stride;
-
-    addr_t even_cnt, odd_cnt;
-    addr_t last_line_num;
-    addr_t line_addr;
-    addr_t line_offset;
-
+    addr_t base;
     always_ff @(posedge clk_i) begin
-        if (start_i) begin
-            vsize <= vsize_i - 1;
-            hsize <= hsize_i;
+        if (start) begin
             stride <= stride_i;
-            last_line_num <= vsize_i - EXPAND_SIZE + 1;
+            base <= base_addr_i;
         end
     end 
 
-    // addr = base_addr_i + (even_cnt * hsize_i) + line_offset
-    assign line_addr = base_addr_i + (even_cnt * stride);
-    assign even_addr_o = line_addr + line_offset;
-
-    logic next_line;
-    logic next_addr;
-    assign next_addr = ready_i & valid_o;
-
-    typedef enum { Idle, ExpandUp, Normal, ExpandDown } state_t;
-    state_t state, next_state;
-
-    always_ff @(posedge clk_i) begin
-        if (rst_i) begin
-            state = Idle;
-        end else begin
-            state <= next_state;
-        end
-    end
-
-    always_comb begin
-        case (state)
-            Idle: begin
-                next_state = start_i ? ExpandUp : Idle;
-            end
-            ExpandUp: begin
-                next_state = (even_cnt == 0) ? Normal : ExpandUp;
-            end
-            Normal: begin
-                next_state = (even_cnt == vsize) ? ExpandDown : Normal;
-            end
-            ExpandDown: begin
-                next_state = (even_cnt == last_line_num) ? Idle : ExpandDown;
-            end
-            default: begin
-                next_state = Idle;
-            end 
-        endcase
-    end
-
-    always_ff @(posedge clk_i) begin
-        if (start_i) begin
-            even_cnt <= EXPAND_SIZE;
-            odd_cnt  <= EXPAND_SIZE-1;
-        end else if ( /* next_addr & next_line */ 1) begin
-            case (state)
-                Idle: begin
-                    even_cnt <= EXPAND_SIZE;
-                    odd_cnt  <= EXPAND_SIZE-1;
-                end
-                ExpandUp: begin
-                    even_cnt <= (even_cnt == 0) ? (even_cnt + 2) : (even_cnt - 2);
-                    if (even_cnt == 2) begin
-                        odd_cnt <= 1;    
-                    end else if (even_cnt == 0) begin
-                        odd_cnt <= 3;
-                    end else begin
-                        odd_cnt <= odd_cnt  - 2;
-                    end
-                end
-                Normal: begin     
-                    even_cnt <= (even_cnt == vsize) ? (even_cnt) : (even_cnt + 2);
-                    odd_cnt  <= (even_cnt == vsize) ? (odd_cnt - 2) : (odd_cnt  + 2);
-                end
-                ExpandDown: begin 
-                    even_cnt <= even_cnt - 2;
-                    odd_cnt  <= odd_cnt  - 2;
-                end
-                default: begin    
-                    even_cnt <= even_cnt;
-                    odd_cnt  <= odd_cnt;
-                end
-            endcase
-        end
-    end
-
-
+    // Line number former signals
+    logic                   new_frame; 
+    logic                   line_num_ready;
+    logic                   line_num_valid;
+    logic   [ADDR_W-1:0]    even_line_num;
+    logic   [ADDR_W-1:0]    odd_line_num;
+    logic                   last_line;
+    // In line offset former signals
     logic                   new_line;
-    logic   [ADDR_W-1:0]    line_size;
     logic   [ADDR_W-1:0]    offset;
     logic   [ 7:0]          burst_len;
     logic                   offset_valid;
     logic                   last_offset;
     logic                   offset_ready;
+
+    // addr = base_addr_i + (even_cnt * hsize_i) + line_offset
+    // assign even_addr_o = (base + offset) + (even_line_num * stride);
+    // assign odd_addr_o  = (base + offset) + (odd_line_num  * stride);
+
+    assign new_frame = start;
+    assign new_line = line_num_ready & line_num_valid;
+
+    addr_t current_even_line_addr;
+    addr_t current_odd_line_addr;
+
+    always_ff @(posedge clk_i) begin
+        if (new_line) begin
+            current_even_line_addr <= even_line_num * stride;
+            current_odd_line_addr <= odd_line_num * stride;
+        end
+    end
+
+    LineNumberFormer #(
+        .ADDR_W(32),
+        .EXPAND_TYPE(EXPAND_TYPE)
+    ) LineNumberFormerInst (
+        .clk_i(clk_i),
+        .rst_i(rst_i),
+        .new_frame_i(new_frame), 
+        .vsize_i(vsize_i),
+        .ready_i(line_num_ready),
+        .valid_o(line_num_valid),
+        .even_line_num_o(even_line_num),
+        .odd_line_num_o(odd_line_num),
+        .last_line_o(last_line)
+    );
 
     InLineOffsetFormer #(
         .ADDR_W(ADDR_W),
@@ -137,7 +93,7 @@ module ReadAddressFormer
         .clk_i(clk_i),
         .rst_i(rst_i),
         .new_line_i(new_line),
-        .line_size_i(line_size),
+        .line_size_i(hsize_i),
         .offset_o(offset),
         .burst_len_o(burst_len),
         .valid_o(offset_valid),
