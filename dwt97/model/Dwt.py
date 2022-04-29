@@ -51,7 +51,9 @@ class ProcessorUnit():
         return output
 
 class Dwt1D():
-    def __init__(self, dir = "row", type = "forward", bufferSize = 1, outputScale = True, expand="leftRight", transposeAfterExpand=False):
+    def __init__(self, dir = "row", type = "forward", bufferSize = 1, 
+                 outputScale = True, expand="leftRight", transposeAfterExpand=False,
+                 inputTranspose=False, transposeBeforeCrop=False, outputCrop=True):
 
         if (expand != "leftRight" and expand != "upDown"):
             raise Exception("expand must be 'forward' or 'backward'")
@@ -66,6 +68,10 @@ class Dwt1D():
         self._dir = dir
         self._type = type
         self._transposeAfterExpand = transposeAfterExpand
+        self._inputTranspose = inputTranspose
+        self._transposeBeforeCrop = transposeBeforeCrop
+        self._outputCrop = outputCrop
+
         consts = Constants()
 
         self._firUnit = ProcessorUnit(
@@ -102,7 +108,10 @@ class Dwt1D():
 
 
     def __call__(self, inputMatrix : np.array):
-        matrix = self.__ExpandBorders(inputMatrix)
+        matrix = np.array(inputMatrix)
+        if (self._inputTranspose):
+            matrix = self.Transpose(matrix)
+        matrix = self.__ExpandBorders(matrix)
         if (self._transposeAfterExpand):
             matrix = self.Transpose(matrix)
         (y, x) = matrix.shape
@@ -130,17 +139,20 @@ class Dwt1D():
                     matrix[row, col] = output.even
                     matrix[row+1, col] = output.odd
 
+        if (self._transposeBeforeCrop):
+            matrix = self.Transpose(matrix)
 
-        if (self._type == "forward"):
-            if (self._expand == "leftRight"):
-                matrix = matrix[:, 8:]
-            elif (self._expand == "upDown"):
-                matrix = matrix[8:, :]
-        elif (self._type == "backward"):
-            if (self._expand == "leftRight"):
-                matrix = matrix[:, 9:-1]
-            elif (self._expand == "upDown"):
-                matrix = matrix[9:-1, :]
+        if (self._outputCrop):
+            if (self._type == "forward"):
+                if (self._expand == "leftRight"):
+                    matrix = matrix[:, 8:]
+                elif (self._expand == "upDown"):
+                    matrix = matrix[8:, :]
+            elif (self._type == "backward"):
+                if (self._expand == "leftRight"):
+                    matrix = matrix[:, 9:-1]
+                elif (self._expand == "upDown"):
+                    matrix = matrix[9:-1, :]
 
         return matrix
 
@@ -186,11 +198,17 @@ class Dwt1D():
         return newMatrix    
 
 class Dwt2D():
-    def __init__(self, type = "forward", lineSize = 512):
-        outputScale1D = True
+    def __init__(self, type = "forward", lineSize = 512, scaleOnFinalStage=False):
+        outputScale1D = ~scaleOnFinalStage
         self._type = type
-        self._colDwt = Dwt1D(dir="col", type=type, bufferSize=lineSize, outputScale=outputScale1D, expand="upDown")
-        self._rowDwt = Dwt1D(dir="col", type=type, bufferSize=2, outputScale=outputScale1D, expand="leftRight", transposeAfterExpand=True)
+
+        self._dwtCol  = Dwt1D(dir = 'col', outputScale=outputScale1D, bufferSize=lineSize, expand='upDown')
+        self._dwtRow  = Dwt1D(dir = 'col', outputScale=outputScale1D, bufferSize=2, expand='leftRight', transposeAfterExpand=True)
+        
+        self._idwtRow = Dwt1D(dir = 'col', outputScale=outputScale1D, bufferSize=2, expand='leftRight', type='backward', 
+                        transposeAfterExpand=True, inputTranspose=True, transposeBeforeCrop=True)        
+        self._idwtCol = Dwt1D(dir = 'col', outputScale=outputScale1D, type='backward', bufferSize=lineSize, expand='upDown')
+
 
     def __call__(self, matrix : np.array):
         input = np.array(matrix)
@@ -198,29 +216,16 @@ class Dwt2D():
             input = self.IReorder(input)
 
         if (self._type == "forward"):
-            colCoeff = self._colDwt(input)
-            coeff = colCoeff
-            # coeff = self._rowDwt(colCoeff)
+            colCoeff = self._dwtCol(input)
+            output = self._dwtRow(colCoeff)
         else:
-            colCoeff = self._colDwt(input)
-            coeff = colCoeff
-            # coeff = self._rowDwt(colCoeff)
+            colCoeff = self._idwtRow(input)
+            output = self._idwtCol(colCoeff)
 
         if (self._type == "forward"):
-            coeff = self.Reorder(coeff)
+            output = self.Reorder(output)
 
-        return coeff
-
-    def Transpose(self, matrix : np.array):
-        newMatrix = np.zeros(matrix.shape)
-        (y, x) = newMatrix.shape
-
-        for row in range(0, y, 2):
-            for col in range(0, x, 2):
-                m = matrix[row:row+2, col:col+2]
-                newMatrix[row:row+2, col:col+2] = m.T
-
-        return newMatrix        
+        return output
 
     def Reorder(self, matrix : np.array):
         newMatrix = np.array(matrix)
