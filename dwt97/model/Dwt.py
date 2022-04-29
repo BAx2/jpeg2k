@@ -52,7 +52,7 @@ class ProcessorUnit():
 
 class Dwt1D():
     def __init__(self, dir = "row", type = "forward", bufferSize = 1, 
-                 outputScale = True, expand="leftRight", transposeAfterExpand=False,
+                 outputScale=True, expand="leftRight", transposeAfterExpand=False,
                  inputTranspose=False, transposeBeforeCrop=False, outputCrop=True):
 
         if (expand != "leftRight" and expand != "upDown"):
@@ -199,15 +199,36 @@ class Dwt1D():
 
 class Dwt2D():
     def __init__(self, type = "forward", lineSize = 512, scaleOnFinalStage=False):
-        outputScale1D = ~scaleOnFinalStage
+        self._scaleOnFinalStage = scaleOnFinalStage
+        consts = Constants()
+        self._kLL = consts.alpha * consts.alpha   \
+                    * consts.beta * consts.beta   \
+                    * consts.gama * consts.gama   \
+                    * consts.delta * consts.delta \
+                    * consts.k * consts.k
+        self._kLH = consts.alpha * consts.alpha \
+                    * consts.beta * consts.beta \
+                    * consts.gama * consts.gama \
+                    * consts.delta
+        self._kHH = consts.alpha * consts.alpha \
+                    * consts.beta * consts.beta \
+                    * consts.gama * consts.gama \
+                    / (consts.k * consts.k)
+        self._kHL = self._kLH
+
+        # print(self._kLL, self._kHH, self._kHL)
+        
+        forwardOutputScale1D = not scaleOnFinalStage
+        backwardOutputScale1D = True
+        
         self._type = type
 
-        self._dwtCol  = Dwt1D(dir = 'col', outputScale=outputScale1D, bufferSize=lineSize, expand='upDown')
-        self._dwtRow  = Dwt1D(dir = 'col', outputScale=outputScale1D, bufferSize=2, expand='leftRight', transposeAfterExpand=True)
+        self._dwtCol  = Dwt1D(dir = 'col', outputScale=forwardOutputScale1D, bufferSize=lineSize, expand='upDown')
+        self._dwtRow  = Dwt1D(dir = 'col', outputScale=forwardOutputScale1D, bufferSize=2, expand='leftRight', transposeAfterExpand=True)
         
-        self._idwtRow = Dwt1D(dir = 'col', outputScale=outputScale1D, bufferSize=2, expand='leftRight', type='backward', 
+        self._idwtRow = Dwt1D(dir = 'col', outputScale=backwardOutputScale1D, bufferSize=2, expand='leftRight', type='backward', 
                         transposeAfterExpand=True, inputTranspose=True, transposeBeforeCrop=True)        
-        self._idwtCol = Dwt1D(dir = 'col', outputScale=outputScale1D, type='backward', bufferSize=lineSize, expand='upDown')
+        self._idwtCol = Dwt1D(dir = 'col', outputScale=backwardOutputScale1D, type='backward', bufferSize=lineSize, expand='upDown')
 
 
     def __call__(self, matrix : np.array):
@@ -221,6 +242,12 @@ class Dwt2D():
         else:
             colCoeff = self._idwtRow(input)
             output = self._idwtCol(colCoeff)
+
+        if (self._scaleOnFinalStage):
+            (h, w) = output.shape
+            k = np.array(((self._kLL, self._kLH), (self._kHL, self._kHH)))
+            k = np.tile(k, (h//2, w//2))
+            output = np.multiply(k, output)
 
         if (self._type == "forward"):
             output = self.Reorder(output)

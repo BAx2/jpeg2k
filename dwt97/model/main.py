@@ -48,7 +48,7 @@ def main1():
     return testsPassed
 
 def main2():
-    # 2D forward using 1D dwt
+    # 2D using 1D dwt
     input2d = np.array(((-0.39063, 0.00781, 0.50000, 0.30469, -0.22656, 0.19531, -0.17188, 0.43359)), ndmin=2)
     input2d = input2d * input2d.T
     (_, width) = input2d.shape
@@ -79,12 +79,16 @@ def main3():
     input2d = input2d * input2d.T
     (_, width) = input2d.shape
 
-    dwt = Dwt2D(type = 'forward', lineSize=width)
+    dwt  = Dwt2D(type = 'forward', lineSize=width)
+    dwt2 = Dwt2D(type = 'forward', lineSize=width, scaleOnFinalStage=True)
     idwt = Dwt2D(type = 'backward', lineSize=width)
 
     coeff = dwt(input2d)
+    coeff2 = dwt2(input2d)
     restored = idwt(coeff)
-    return Compare('Full 2D restore:', input2d, restored)
+
+    return Compare('Full 2D restore:   ', input2d, restored) \
+       and Compare('Final output scale:', coeff, coeff2) 
     
 if __name__ == '__main__':
     allTestsPassed = True
@@ -92,6 +96,6 @@ if __name__ == '__main__':
     allTestsPassed = allTestsPassed and main2()
     allTestsPassed = allTestsPassed and main3()
 
-    print('All tests passed: ', allTestsPassed)
+    print('All tests passed:  ', allTestsPassed)
 
     pass
