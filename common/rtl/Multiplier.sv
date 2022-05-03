@@ -15,8 +15,9 @@ module Multiplier #(
 
     localparam InternalPoint = APoint + BPoint;    
     localparam LowSignificantBit = InternalPoint - OutPoint;
+    localparam InternalWidth = AWidth+BWidth;
 
-    logic signed [AWidth+BWidth-1:0] m;
+    logic signed [InternalWidth-1:0] m;
     assign m = a_i * b_i;
 
     assign m_o = m[OutWidth+LowSignificantBit-1:LowSignificantBit];
@@ -27,5 +28,16 @@ module Multiplier #(
     assign rb  = b_i    / (2.0 ** BPoint);
     assign rmi = m      / (2.0 ** InternalPoint);
     assign rm  = m_o    / (2.0 ** OutPoint);
+    
+    logic overflow;
+    always_comb begin
+        overflow = 0;
+        for (int i = OutWidth+LowSignificantBit; i < InternalWidth; i++) begin
+            overflow = overflow || (m[i] != m[OutWidth+LowSignificantBit-1]);
+        end
+        assert (overflow == 0) else 
+            $display("\t\tTime: %5t \t Multiplier overflow(a = %3.3f b = %3.3f intMul = %3.3f outMul = %3.3f)", 
+                     $time, ra, rb, rmi, rm);
+    end
 
 endmodule

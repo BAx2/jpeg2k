@@ -1,169 +1,246 @@
 module tb_pu ();
 
-    localparam ClkPeriod    = 10ns;
-    localparam DataWidth    = 24;
-    localparam Point        = 16;
-    localparam SideSize     = 16;
-
-    typedef logic [DataWidth-1:0] coeff_t;
-    typedef coeff_t [0:SideSize-1] coeff_line_t;
-
-    real    src_data [0:SideSize-1][0:SideSize-1];
-    coeff_line_t in_data[0:SideSize-1];
-
-    coeff_t even, odd;
-    logic   sof, eol;
-    logic   ready, valid;
-
-    logic m_ready;
-    logic m_valid;
-    logic m_sof;
-    logic m_eol;
-    logic [2*DataWidth-1:0] m_data;
+    localparam ClkPeriod   = 10ns;
     
-    logic signed [DataWidth-1:0] h_int, l_int;
-    real    l, h;
+    localparam CommonWidth = 24;
+    localparam CommonPoint = 16;
 
-    assign l_int = m_data[DataWidth-1:0];
-    assign h_int = m_data[2*DataWidth-1:DataWidth];
-    assign l = l_int / (2.0 ** Point); 
-    assign h = h_int / (2.0 ** Point); 
+    localparam SideSize    = 16;
+
+    parameter       MaximumSideSize   = 512;
+    parameter       FilterType        = "Column"; // "Column" "Row"
+    parameter real  OddK              = 1.0 / (Coefficient::Alpha);
+    parameter real  EvenK             = 1.0 / (Coefficient::Alpha * Coefficient::Beta) + 1.0;
+    parameter bit   InputReg          = 1;
+    parameter bit   InputSkidBuff     = 1;
+    parameter bit   OutputReg         = 1;
+    parameter bit   OutputSkidBuff    = 1;
+
+    parameter       OddInputWidth     = CommonWidth;
+    parameter       OddInputPoint     = CommonPoint;
+    parameter       OddKWidth         = CommonWidth;
+    parameter       OddKPoint         = CommonPoint;
+    parameter       OddMultOutWidth   = CommonWidth;
+    parameter       OddMultOutPoint   = CommonPoint;
+    parameter       OddBuffWidth      = CommonWidth;
+    parameter       OddBuffPoint      = CommonPoint;
+    parameter       OddOutputWidth    = CommonWidth;
+    parameter       OddOutputPoint    = CommonPoint;
+
+    parameter       EvenInputWidth    = CommonWidth;
+    parameter       EvenInputPoint    = CommonPoint;
+    parameter       EvenKWidth        = CommonWidth;
+    parameter       EvenKPoint        = CommonPoint;
+    parameter       EvenMultOutWidth  = CommonWidth;
+    parameter       EvenMultOutPoint  = CommonPoint;
+    parameter       EvenBuffWidth     = CommonWidth;
+    parameter       EvenBuffPoint     = CommonPoint;
+    parameter       EvenOutputWidth   = CommonWidth;
+    parameter       EvenOutputPoint   = CommonPoint;
+
+    typedef real real_line_t[0:SideSize-1];
+    real_line_t src_data [0:SideSize-1];
+    real_line_t coeff    [-4:SideSize-1];
+
+    logic                                   clk_i;
+    logic                                   rst_i;
+    logic                                   s_ready_o;
+    logic                                   s_valid_i;
+    logic                                   s_sof_i;
+    logic                                   s_eol_i;
+    logic   [OddInputWidth-1:0]             s_data_odd_i;
+    logic   [EvenInputWidth-1:0]            s_data_even_i;
+    logic                                   m_ready_i;
+    logic                                   m_valid_o;
+    logic                                   m_sof_o;
+    logic                                   m_eol_o;
+    logic   [OddOutputWidth-1:0]            m_data_odd_o;
+    logic   [EvenOutputWidth-1:0]           m_data_even_o;
 
     initial begin
-        // src_data[ 0] = {   0.39,    0.39,   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[ 1] = {   0.0078,  0.0078, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[ 2] = {  -0.039,  -0.039,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[ 3] = {   0.01,    0.01,   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[ 4] = {  -0.2,    -0.2,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[ 5] = {   0.05,    0.05,   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[ 6] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[ 7] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[ 8] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[ 9] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[10] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[11] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[12] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[13] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[14] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        // src_data[15] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-
-        src_data[ 0] = { 0.39,   0.0, -0.039, 0.0, -0.2,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[ 1] = { 0.0078, 0.0,  0.01,  0.0,  0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[ 2] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[ 3] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[ 4] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[ 5] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[ 6] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[ 7] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[ 8] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[ 9] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[10] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[11] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[12] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[13] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[14] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-        src_data[15] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-
-
-        for (int y = 0; y < SideSize; y++) begin
-            for (int x = 0; x < SideSize; x++) begin
-                in_data[y][x] = $rtoi(src_data[y][x] * (2.0**Point));
-            end
+        if (FilterType == "Column") begin
+            src_data[ 0] = {   0.39,    0.39,   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 1] = {   0.0078,  0.0078, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 2] = {  -0.039,  -0.039,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 3] = {   0.01,    0.01,   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 4] = {  -0.2,    -0.2,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 5] = {   0.05,    0.05,   0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 6] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 7] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 8] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 9] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[10] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[11] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[12] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[13] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[14] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[15] = {   0.0,     0.0,    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+        end else begin
+            src_data[ 0] = { 0.39,   0.0, -0.039, 0.0, -0.2,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 1] = { 0.0078, 0.0,  0.01,  0.0,  0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 2] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 3] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 4] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 5] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 6] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 7] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 8] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[ 9] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[10] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[11] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[12] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[13] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[14] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+            src_data[15] = { 0.0,    0.0,  0.0,   0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
         end
     end
 
     logic clk;
     logic rst;
     always #(ClkPeriod/2) clk = ~clk;
+    assign clk_i = clk;
+    assign rst_i = rst;
 
-    task WriteLine(coeff_line_t even_line, coeff_line_t odd_line, logic start_frame);
-        sof = start_frame;
-        eol = 0;
+    function int ToFixed(real a, int point);
+        ToFixed = $rtoi(a * (2.0 ** point));  
+    endfunction
 
-        for (int i = 4; i > 1; i--) begin
-            valid = 1;
-            even = even_line[i];
-            odd = odd_line[i-2];
-            if (i == SideSize - 1) begin
-                eol = 1;
+    function real ToReal(int num, int point);
+        ToReal = $itor(num) / (2.0 ** point);
+    endfunction
+
+    task WriteLine(real_line_t even_line, real_line_t odd_line, logic start_frame);
+        s_sof_i = start_frame;
+        s_eol_i = 0;
+
+        if (FilterType == "Row") begin
+            for (int i = 4; i > 1; i--) begin
+                s_valid_i = 1;
+                s_data_even_i = ToFixed(even_line[i], EvenInputPoint);
+                s_data_odd_i  = ToFixed(odd_line[i-2], OddInputPoint);
+                if (i == SideSize - 1) begin
+                    s_eol_i = 1;
+                end
+                @(negedge clk);
+                s_sof_i = 0;
             end
+            s_data_even_i = 0;
+            s_data_odd_i = 0;
             @(negedge clk);
-            sof = 0;
         end
-
-        even = 0;
-        odd = 0;
-        @(negedge clk);
 
         for (int i = 0; i < SideSize; i++) begin
-            valid = 1;
-            even = even_line[i];
-            odd = odd_line[i];
+            s_valid_i = 1;
+            s_data_even_i = ToFixed(even_line[i], EvenInputPoint);
+            s_data_odd_i  = ToFixed(odd_line[i],  OddInputPoint);
             if (i == SideSize - 1) begin
-                eol = 1;
+                s_eol_i = 1;
             end
             @(negedge clk);
-            sof = 0;
-            eol = 0;
+            s_sof_i = 0;
+            s_eol_i = 0;
         end
-        valid = 0;
-        even = 'hx;
-        odd = 'hx;
+
+        s_valid_i = 0;
+        s_data_even_i = 'hx;
+        s_data_odd_i = 'hx;
     endtask
 
     initial begin
         clk = 0;
         rst = 1;
-        valid = 0;
-        eol = 0;
-        sof = 0;
+        s_valid_i = 0;
+        s_eol_i = 0;
+        s_sof_i = 0;
         @(negedge clk);
         @(negedge clk);
         rst = 0;
         @(negedge clk);
         @(negedge clk);
 
-        WriteLine(in_data[0], in_data[1], 1);
+        if (FilterType == "Column") begin
+            WriteLine(src_data[4], src_data[3], 1);
+            WriteLine(src_data[2], src_data[1], 0);
+            for (int i = 0; i < SideSize; i+=2) begin
+                WriteLine(src_data[i], src_data[i+1], 0);
+            end
+            WriteLine(src_data[SideSize-2], src_data[SideSize-3], 0);
+            WriteLine(src_data[SideSize-4], src_data[SideSize-5], 0);
+        end else begin
+            WriteLine(src_data[0], src_data[1], 1);
+        end
 
-        // WriteLine(in_data[4], in_data[3], 1);
-        // // @(negedge clk);
-        // WriteLine(in_data[2], in_data[1], 0);
-        // // @(negedge clk);
-        // for (int i = 0; i < SideSize; i+=2) begin
-        //     WriteLine(in_data[i], in_data[i+1], 0);
-        //     // @(negedge clk);
-        // end
-        // WriteLine(in_data[SideSize-2], in_data[SideSize-3], 0);
-        // // @(negedge clk);
-        // WriteLine(in_data[SideSize-4], in_data[SideSize-5], 0);
+        for (int i = 0; i < 20; i++) @(negedge clk);
+
+
+        for (int y = $left(coeff, 1); y < $right(coeff, 1); y++) begin
+            for (int x = $left(coeff, 2); x < $right(coeff, 2); x++) begin
+                $write("\t%3.3f", coeff[y][x]);
+            end
+            $write("\n");
+        end
     end
 
-    assign m_ready = 1;
+    int x, y;
+    always @(posedge clk) begin
+        if (rst) begin
+            x = 0;
+            y = $left(coeff, 1);
+            $display("\t\t\t\t%i", $left(coeff, 1));
+        end else if (m_ready_i && m_valid_o) begin
+            if (m_sof_o) begin 
+                x = 0;
+                y = $left(coeff, 1);
+            end
+
+            coeff[y][x]   = ToReal(m_data_even_o, EvenOutputPoint);
+            coeff[y+1][x] = ToReal(m_data_odd_o, OddOutputPoint);
+            
+            x = x + 1;
+            if (m_eol_o) begin
+                x = 0;
+                y = y + 2;
+            end
+        end
+    end
+
+    assign m_ready_i = 1;
 
     ProcessingUnit1D #(
-        .DataWidth(DataWidth),
-        .Point(Point),
-        .MaximumSideSize(2*SideSize),
-        // .FilterType("Column"),
-        .FilterType("Row"),
-        .Alpha(Coefficient::Alpha),
-        .Beta(Coefficient::Beta),
-        .InputReg(1)
+        .MaximumSideSize(MaximumSideSize),
+        .FilterType(FilterType),
+        
+        .OddK(OddK),
+        .EvenK(EvenK),
+        
+        .InputReg(InputReg),
+        .InputSkidBuff(InputSkidBuff),
+        
+        .OutputReg(OutputReg),
+        .OutputSkidBuff(OutputSkidBuff),
+
+        .OddInputWidth(OddInputWidth),
+        .OddInputPoint(OddInputPoint),
+        .OddKWidth(OddKWidth),
+        .OddKPoint(OddKPoint),
+        .OddMultOutWidth(OddMultOutWidth),
+        .OddMultOutPoint(OddMultOutPoint),
+        .OddBuffWidth(OddBuffWidth),
+        .OddBuffPoint(OddBuffPoint),
+        .OddOutputWidth(OddOutputWidth),
+        .OddOutputPoint(OddOutputPoint),
+        .EvenInputWidth(EvenInputWidth),
+        .EvenInputPoint(EvenInputPoint),
+        .EvenKWidth(EvenKWidth),
+        .EvenKPoint(EvenKPoint),
+        .EvenMultOutWidth(EvenMultOutWidth),
+        .EvenMultOutPoint(EvenMultOutPoint),
+        .EvenBuffWidth(EvenBuffWidth),
+        .EvenBuffPoint(EvenBuffPoint),
+        .EvenOutputWidth(EvenOutputWidth),
+        .EvenOutputPoint(EvenOutputPoint)
     ) DUT (
-        .clk_i(clk),
-        .rst_i(rst),
-        
-        .s_ready_o(ready),
-        .s_valid_i(valid),
-        .s_sof_i(sof),
-        .s_eol_i(eol),
-        .s_data_i({ odd, even }),
-        
-        .m_ready_i(m_ready),
-        .m_valid_o(m_valid),
-        .m_sof_o(m_sof),
-        .m_eol_o(m_eol),
-        .m_data_o(m_data)
+        .*
     );
 
 endmodule
