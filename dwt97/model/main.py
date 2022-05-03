@@ -90,11 +90,45 @@ def main3():
     return Compare('Full 2D restore:   ', input2d, restored) \
        and Compare('Final output scale:', coeff, coeff2) 
     
+def DataForTestProcessingUnit():
+    sideSize = 16
+    expandSize = 2
+    np.random.seed(0)
+    # input = np.random.rand(sideSize, sideSize)
+    input = np.diag(np.random.rand(sideSize))
+
+    print(input)
+    input = np.pad(input, expandSize, 'reflect')[:, expandSize:-expandSize]
+    output = np.zeros(input.shape)
+
+    consts = Constants()
+    pu = ProcessorUnit(1/consts.alpha, 
+                      1/(consts.alpha * consts.beta) + 1, 
+                      sideSize)
+
+    (y, x) = input.shape
+    for row in range(0, y, 2):
+        for col in range(x):
+            pair = Pair(input[row, col], input[row+1, col])
+            pair = pu(pair)
+            output[row, col] = pair.even
+            output[row+1, col] = pair.odd
+    
+    output = output[(2*expandSize):, :]
+    print(output)
+
+
 if __name__ == '__main__':
+    
+    np.set_printoptions(precision=3)
+    np.set_printoptions(linewidth=100000)
+    
     allTestsPassed = True
     allTestsPassed = allTestsPassed and main1()
     allTestsPassed = allTestsPassed and main2()
     allTestsPassed = allTestsPassed and main3()
+    
+    DataForTestProcessingUnit()
 
     print('All tests passed:  ', allTestsPassed)
 
