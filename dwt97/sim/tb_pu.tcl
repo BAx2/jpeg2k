@@ -24,6 +24,7 @@ add wave x y
 add wave coeff
 add wave -divider -height 40 DUT
 add wave DUT/*
+add wave -divider -height 40
 
 # add wave -position insertpoint  \
 #      sim:/tb_pu/DUT/D1RamInst/ram  \
