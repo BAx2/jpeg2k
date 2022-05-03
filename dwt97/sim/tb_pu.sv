@@ -22,23 +22,31 @@ module tb_pu ();
     parameter       EvenKWidth        = CoefficientWidth;
     parameter       EvenKPoint        = CoefficientWidth - 5;
 
+    // range [-0.5, 0.5) 
     parameter       OddInputWidth     = CommonWidth;
-    parameter       OddInputPoint     = CommonPoint;
+    parameter       OddInputPoint     = CommonWidth-1;
+    // range +-(  Abs(OddK * OddIn) )
     parameter       OddMultOutWidth   = CommonWidth;
-    parameter       OddMultOutPoint   = CommonPoint;
+    parameter       OddMultOutPoint   = CommonWidth-1;
+    // range +-(  Abs(OddK * OddIn) + Abs(EvenIn)  )
     parameter       OddBuffWidth      = CommonWidth;
-    parameter       OddBuffPoint      = CommonPoint;
+    parameter       OddBuffPoint      = CommonWidth-1;
+    // range +-(   Abs(OddK * OddIn) + Abs(2 * EvenIn)  )
     parameter       OddOutputWidth    = CommonWidth;
-    parameter       OddOutputPoint    = CommonPoint;
-
+    parameter       OddOutputPoint    = CommonWidth-2;
+    
+    // range [-0.5, 0.5) 
     parameter       EvenInputWidth    = CommonWidth;
-    parameter       EvenInputPoint    = CommonPoint;
+    parameter       EvenInputPoint    = CommonWidth-1;
+    // range +-(  Abs(EvenK) * Abs(EvenIn)  )
     parameter       EvenMultOutWidth  = CommonWidth;
-    parameter       EvenMultOutPoint  = CommonPoint;
+    parameter       EvenMultOutPoint  = CommonWidth-4; 
+    // range +-(  Abs(EvenK  + 1) * Abs(EvenIn) + Abs(OddK * OddIn) )
     parameter       EvenBuffWidth     = CommonWidth;
-    parameter       EvenBuffPoint     = CommonPoint;
+    parameter       EvenBuffPoint     = CommonWidth-4;
+    // range +-(  Abs(EvenK  + 3) * Abs(EvenIn) + Abs(2 * OddK * OddIn)  )
     parameter       EvenOutputWidth   = CommonWidth;
-    parameter       EvenOutputPoint   = CommonPoint;
+    parameter       EvenOutputPoint   = CommonWidth-5;
 
     typedef real real_line_t[0:SideSize-1];
     real_line_t src_data [0:SideSize-1];
